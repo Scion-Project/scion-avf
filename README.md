@@ -31,6 +31,14 @@ If the phone's crosvm can't host them, the porting work can still be developed
 and measured on a Linux ARM64 host with KVM, where we control crosvm, while
 the phone question stays open.
 
+## Spike #1 results
+
+[docs/SPIKE-1-AVF-LAUNCH.md](docs/SPIKE-1-AVF-LAUNCH.md) covers what a
+sideloaded app needs to boot a custom VM: two `pm grant`s plus a hidden-API
+exemption. It also covers what crosvm exposes and the copy-paste steps for the
+(still pending) Pixel 10 run. The tooling is in [probe/](probe): a Kotlin probe
+app, a tiny Linux guest, and `run-on-device.sh`.
+
 ## Ground rules
 
 Same as the main project ([ETHICS.md](https://github.com/dylanneve1/ios-on-pixel/blob/main/docs/ETHICS.md)):

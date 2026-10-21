@@ -1,0 +1,68 @@
+# AVF probe report
+time: 2026-10-21T14:17:26.080143+01:00
+
+## device
+model: Google sdk_gphone64_arm64 (emu64a)
+soc: AOSP ranchu
+android: 16 (SDK 36), security patch 2025-07-05
+build: google/sdk_gphone64_arm64/emu64a:16/BE2A.250530.026.D1/13818094:user/release-keys type=user
+abis: arm64-v8a
+/dev/kvm visible to app: false
+prop hypervisor.vm.supported = (unset or unreadable)
+prop hypervisor.protected_vm.supported = (unset or unreadable)
+prop hypervisor.version = (unset or unreadable)
+prop hypervisor.memory_reclaim.supported = (unset or unreadable)
+prop ro.boot.hypervisor.vm.supported = (unset or unreadable)
+prop ro.boot.hypervisor.protected_vm.supported = (unset or unreadable)
+prop ro.boot.hypervisor.version = (unset or unreadable)
+prop ro.boot.hypervisor.pvmfw.path = (unset or unreadable)
+
+## gate 1: system feature
+android.software.virtualization_framework: false
+  -> FAIL [FEATURE_MISSING] android.software.virtualization_framework not declared; getSystemService(VirtualMachineManager) returns null
+
+## gate 2: permissions
+android.permission.MANAGE_VIRTUAL_MACHINE: not granted [protection: signature|development|preinstalled]
+  -> FAIL [PERMISSION_MISSING] android.permission.MANAGE_VIRTUAL_MACHINE not granted (adb shell pm grant io.github.dylanneve1.avfprobe android.permission.MANAGE_VIRTUAL_MACHINE)
+android.permission.USE_CUSTOM_VIRTUAL_MACHINE: not granted [protection: signature|development]
+  -> FAIL [PERMISSION_MISSING] android.permission.USE_CUSTOM_VIRTUAL_MACHINE not granted (adb shell pm grant io.github.dylanneve1.avfprobe android.permission.USE_CUSTOM_VIRTUAL_MACHINE)
+android.permission.DEBUG_VIRTUAL_MACHINE: not granted [protection: signature]
+(DEBUG_VIRTUAL_MACHINE isn't needed for a custom VM; listed for reference)
+
+## gate 3: API access (hidden-API policy)
+classes: VirtualMachineManager=found, VirtualMachineConfig=found, VirtualMachineCustomImageConfig=found, VirtualMachine=found, VirtualMachineCallback=found
+  ok      vmm.getCapabilities
+  ok      vmm.get
+  ok      vmm.delete
+  ok      vmm.create
+  ok      cfgB.setProtectedVm
+  ok      cfgB.setMemoryBytes
+  ok      cfgB.setCpuTopology
+  ok      cfgB.setDebugLevel
+  ok      cfgB.setVmOutputCaptured
+  ok      cfgB.build
+  BLOCKED cfgB.setCustomImageConfig  (@hide)
+  BLOCKED imgB.setName  (@hide)
+  BLOCKED imgB.setKernelPath  (@hide)
+  BLOCKED imgB.setInitrdPath  (@hide)
+  BLOCKED imgB.addParam  (@hide)
+  BLOCKED imgB.build  (@hide)
+  ok      vm.setCallback
+  ok      vm.run
+  ok      vm.stop
+  ok      vm.getStatus
+  ok      vm.getConsoleOutput
+  ok      vm.getLogOutput
+  ok      vm.close
+  BLOCKED imgB.<init>()  (@hide)
+  ok      cfgB.<init>(Context)
+  -> FAIL [HIDDEN_API_BLOCKED] unreachable: cfgB.setCustomImageConfig, imgB.setName, imgB.setKernelPath, imgB.setInitrdPath, imgB.addParam, imgB.build, imgB.<init> (see docs/SPIKE-1-AVF-LAUNCH.md for the hidden_api_blacklist_exemptions setting)
+
+## gate 4: guest files
+kernel: /data/user/0/io.github.dylanneve1.avfprobe/files/guest/Image 30892544 bytes
+initrd: /data/user/0/io.github.dylanneve1.avfprobe/files/guest/initrd.img 6103 bytes
+
+## gate 5: VM config
+(skipped: an earlier gate failed)
+
+VERDICT: FEATURE_MISSING (android.software.virtualization_framework not declared; getSystemService(VirtualMachineManager) returns null)

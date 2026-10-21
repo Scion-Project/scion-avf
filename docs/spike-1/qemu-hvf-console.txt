@@ -1,0 +1,709 @@
+[    0.000000] Booting Linux on physical CPU 0x0000000000 [0x610f0000]
+[    0.000000] Linux version 6.12.111+deb13-cloud-arm64 (debian-kernel@lists.debian.org) (aarch64-linux-gnu-gcc-14 (Debian 14.2.0-19) 14.2.0, GNU ld (GNU Binutils for Debian) 2.44) #1 SMP Debian 6.12.111-1 (2026-09-28)
+[    0.000000] KASLR enabled
+[    0.000000] random: crng init done
+[    0.000000] Machine model: linux,dummy-virt
+[    0.000000] efi: UEFI not found.
+[    0.000000] OF: reserved mem: Reserved memory: No reserved-memory node in the DT
+[    0.000000] NUMA: Faking a node at [mem 0x0000000040000000-0x000000005fffffff]
+[    0.000000] NODE_DATA(0) allocated [mem 0x5fefba80-0x5feff1bf]
+[    0.000000] Zone ranges:
+[    0.000000]   DMA      [mem 0x0000000040000000-0x000000005fffffff]
+[    0.000000]   DMA32    empty
+[    0.000000]   Normal   empty
+[    0.000000]   Device   empty
+[    0.000000] Movable zone start for each node
+[    0.000000] Early memory node ranges
+[    0.000000]   node   0: [mem 0x0000000040000000-0x000000005fffffff]
+[    0.000000] Initmem setup node 0 [mem 0x0000000040000000-0x000000005fffffff]
+[    0.000000] cma: Reserved 64 MiB at 0x000000005b600000 on node -1
+[    0.000000] psci: probing for conduit method from DT.
+[    0.000000] psci: PSCIv1.1 detected in firmware.
+[    0.000000] psci: Using standard PSCI v0.2 function IDs
+[    0.000000] psci: Trusted OS migration not required
+[    0.000000] psci: SMC Calling Convention v1.0
+[    0.000000] percpu: Embedded 34 pages/cpu s99800 r8192 d31272 u139264
+[    0.000000] Detected PIPT I-cache on CPU0
+[    0.000000] CPU features: detected: Address authentication (IMP DEF algorithm)
+[    0.000000] CPU features: detected: Spectre-v4
+[    0.000000] CPU features: detected: Spectre-BHB
+[    0.000000] alternatives: applying boot alternatives
+[    0.000000] Kernel command line: console=ttyAMA0 panic=-1
+[    0.000000] Dentry cache hash table entries: 65536 (order: 7, 524288 bytes, linear)
+[    0.000000] Inode-cache hash table entries: 32768 (order: 6, 262144 bytes, linear)
+[    0.000000] Fallback order for Node 0: 0 
+[    0.000000] Built 1 zonelists, mobility grouping on.  Total pages: 131072
+[    0.000000] Policy zone: DMA
+[    0.000000] mem auto-init: stack:all(zero), heap alloc:on, heap free:off
+[    0.000000] software IO TLB: SWIOTLB bounce buffer size adjusted to 0MB
+[    0.000000] software IO TLB: area num 2.
+[    0.000000] software IO TLB: mapped [mem 0x000000005b540000-0x000000005b5c0000] (0MB)
+[    0.000000] SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=2, Nodes=1
+[    0.000000] ftrace: allocating 43926 entries in 172 pages
+[    0.000000] ftrace: allocated 172 pages with 4 groups
+[    0.000000] rcu: Hierarchical RCU implementation.
+[    0.000000] rcu: 	RCU restricting CPUs from NR_CPUS=512 to nr_cpu_ids=2.
+[    0.000000] 	Rude variant of Tasks RCU enabled.
+[    0.000000] 	Tracing variant of Tasks RCU enabled.
+[    0.000000] rcu: RCU calculated value of scheduler-enlistment delay is 25 jiffies.
+[    0.000000] rcu: Adjusting geometry for rcu_fanout_leaf=16, nr_cpu_ids=2
+[    0.000000] RCU Tasks Rude: Setting shift to 1 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=2.
+[    0.000000] RCU Tasks Trace: Setting shift to 1 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=2.
+[    0.000000] NR_IRQS: 64, nr_irqs: 64, preallocated irqs: 0
+[    0.000000] GICv3: 988 SPIs implemented
+[    0.000000] GICv3: 0 Extended SPIs implemented
+[    0.000000] Root IRQ handler: gic_handle_irq
+[    0.000000] GICv3: GICv3 features: 16 PPIs, RSS
+[    0.000000] GICv3: GICD_CTRL.DS=1, SCR_EL3.FIQ=0
+[    0.000000] GICv3: CPU0: found redistributor 0 region 0:0x00000000080a0000
+[    0.000000] GICv2m: range[mem 0x08020000-0x08020fff], SPI[80:143]
+[    0.000000] rcu: srcu_init: Setting srcu_struct sizes based on contention.
+[    0.000000] clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 7645041785100000 ns
+[    0.000000] arch_timer: cp15 timer(s) running at 24.00MHz (virt).
+[    0.000000] clocksource: arch_sys_counter: mask: 0xffffffffffffff max_cycles: 0x588fe9dc0, max_idle_ns: 440795202592 ns
+[    0.000000] sched_clock: 56 bits at 24MHz, resolution 41ns, wraps every 4398046511097ns
+[    0.000114] Console: colour dummy device 80x25
+[    0.000131] Calibrating delay loop (skipped), value calculated using timer frequency.. 48.00 BogoMIPS (lpj=96000)
+[    0.000133] pid_max: default: 32768 minimum: 301
+[    0.000162] LSM: initializing lsm=lockdown,capability,landlock,yama,apparmor,tomoyo,bpf,ipe,ima,evm
+[    0.000323] landlock: Up and running.
+[    0.000323] Yama: disabled by default; enable with sysctl kernel.yama.*
+[    0.000580] AppArmor: AppArmor initialized
+[    0.000697] TOMOYO Linux initialized
+[    0.001586] LSM support for eBPF active
+[    0.001785] Mount-cache hash table entries: 1024 (order: 1, 8192 bytes, linear)
+[    0.001788] Mountpoint-cache hash table entries: 1024 (order: 1, 8192 bytes, linear)
+[    0.002201] rcu: Hierarchical SRCU implementation.
+[    0.002202] rcu: 	Max phase no-delay instances is 1000.
+[    0.002233] Timer migration: 1 hierarchy levels; 8 children per group; 1 crossnode level
+[    0.002341] EFI services will not be available.
+[    0.002360] smp: Bringing up secondary CPUs ...
+[    0.002583] Detected PIPT I-cache on CPU1
+[    0.002598] GICv3: CPU1: found redistributor 1 region 0:0x00000000080c0000
+[    0.002633] CPU1: Booted secondary processor 0x0000000001 [0x610f0000]
+[    0.003160] smp: Brought up 1 node, 2 CPUs
+[    0.003162] SMP: Total of 2 processors activated.
+[    0.003163] CPU: All CPU(s) started at EL1
+[    0.003165] CPU features: detected: ARMv8.4 Translation Table Level
+[    0.003165] CPU features: detected: Data cache clean to the PoU not required for I/D coherence
+[    0.003166] CPU features: detected: Common not Private translations
+[    0.003166] CPU features: detected: CRC32 instructions
+[    0.003166] CPU features: detected: Data cache clean to Point of Deep Persistence
+[    0.003167] CPU features: detected: Data cache clean to Point of Persistence
+[    0.003167] CPU features: detected: Data independent timing control (DIT)
+[    0.003167] CPU features: detected: E0PD
+[    0.003168] CPU features: detected: Generic authentication (IMP DEF algorithm)
+[    0.003169] CPU features: detected: RCpc load-acquire (LDAPR)
+[    0.003169] CPU features: detected: LSE atomic instructions
+[    0.003169] CPU features: detected: Privileged Access Never
+[    0.003170] CPU features: detected: RAS Extension Support
+[    0.003173] CPU features: detected: Speculation barrier (SB)
+[    0.003173] CPU features: detected: TLB range maintenance instructions
+[    0.003238] alternatives: applying system-wide alternatives
+[    0.004554] node 0 deferred pages initialised in 4ms
+[    0.004576] Memory: 412460K/524288K available (14272K kernel code, 2776K rwdata, 10772K rodata, 2176K init, 906K bss, 43076K reserved, 65536K cma-reserved)
+[    0.005094] devtmpfs: initialized
+[    0.005320] setend instruction emulation is not supported on this system
+[    0.005396] futex hash table entries: 512 (order: 3, 32768 bytes, linear)
+[    0.005501] 2G module region forced by RANDOMIZE_MODULE_REGION_FULL
+[    0.005501] 0 pages in range for non-PLT usage
+[    0.005501] 516496 pages in range for PLT usage
+[    0.005532] pinctrl core: initialized pinctrl subsystem
+[    0.005601] DMI not present or invalid.
+[    0.006416] NET: Registered PF_NETLINK/PF_ROUTE protocol family
+[    0.006792] DMA: preallocated 128 KiB GFP_KERNEL pool for atomic allocations
+[    0.006835] DMA: preallocated 128 KiB GFP_KERNEL|GFP_DMA pool for atomic allocations
+[    0.006865] DMA: preallocated 128 KiB GFP_KERNEL|GFP_DMA32 pool for atomic allocations
+[    0.006886] audit: initializing netlink subsys (disabled)
+[    0.006967] audit: type=2000 audit(0.004:1): state=initialized audit_enabled=0 res=1
+[    0.007039] thermal_sys: Registered thermal governor 'fair_share'
+[    0.007040] thermal_sys: Registered thermal governor 'bang_bang'
+[    0.007041] thermal_sys: Registered thermal governor 'step_wise'
+[    0.007041] thermal_sys: Registered thermal governor 'user_space'
+[    0.007066] cpuidle: using governor ladder
+[    0.007079] cpuidle: using governor menu
+[    0.007096] hw-breakpoint: found 6 breakpoint and 4 watchpoint registers.
+[    0.007119] ASID allocator initialised with 256 entries
+[    0.007140] Serial: AMBA PL011 UART driver
+[    0.007697] 9000000.pl011: ttyAMA0 at MMIO 0x9000000 (irq = 13, base_baud = 0) is a PL011 rev1
+[    0.007713] printk: legacy console [ttyAMA0] enabled
+[    0.065983] HugeTLB: registered 1.00 GiB page size, pre-allocated 0 pages
+[    0.066500] HugeTLB: 0 KiB vmemmap can be freed for a 1.00 GiB page
+[    0.066995] HugeTLB: registered 32.0 MiB page size, pre-allocated 0 pages
+[    0.067494] HugeTLB: 0 KiB vmemmap can be freed for a 32.0 MiB page
+[    0.067931] HugeTLB: registered 2.00 MiB page size, pre-allocated 0 pages
+[    0.068423] HugeTLB: 0 KiB vmemmap can be freed for a 2.00 MiB page
+[    0.068917] HugeTLB: registered 64.0 KiB page size, pre-allocated 0 pages
+[    0.069417] HugeTLB: 0 KiB vmemmap can be freed for a 64.0 KiB page
+[    0.072636] ACPI: Interpreter disabled.
+[    0.073010] iommu: Default domain type: Translated
+[    0.073366] iommu: DMA domain TLB invalidation policy: strict mode
+[    0.073937] pps_core: LinuxPPS API ver. 1 registered
+[    0.074307] pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti <giometti@linux.it>
+[    0.074947] PTP clock support registered
+[    0.075227] scmi_core: SCMI protocol bus registered
+[    0.075683] NetLabel: Initializing
+[    0.075933] NetLabel:  domain hash size = 128
+[    0.076241] NetLabel:  protocols = UNLABELED CIPSOv4 CALIPSO
+[    0.076648] NetLabel:  unlabeled traffic allowed by default
+[    0.077069] vgaarb: loaded
+[    0.077482] clocksource: Switched to clocksource arch_sys_counter
+[    0.078019] VFS: Disk quotas dquot_6.6.0
+[    0.078420] VFS: Dquot-cache hash table entries: 512 (order 0, 4096 bytes)
+[    0.079100] AppArmor: AppArmor Filesystem Enabled
+[    0.079454] pnp: PnP ACPI: disabled
+[    0.081925] NET: Registered PF_INET protocol family
+[    0.082320] IP idents hash table entries: 8192 (order: 4, 65536 bytes, linear)
+[    0.091694] tcp_listen_portaddr_hash hash table entries: 256 (order: 0, 4096 bytes, linear)
+[    0.092390] Table-perturb hash table entries: 65536 (order: 6, 262144 bytes, linear)
+[    0.092973] TCP established hash table entries: 4096 (order: 3, 32768 bytes, linear)
+[    0.093586] TCP bind hash table entries: 4096 (order: 5, 131072 bytes, linear)
+[    0.094146] TCP: Hash tables configured (established 4096 bind 4096)
+[    0.094656] MPTCP token hash table entries: 512 (order: 2, 12288 bytes, linear)
+[    0.095288] UDP hash table entries: 256 (order: 1, 8192 bytes, linear)
+[    0.095814] UDP-Lite hash table entries: 256 (order: 1, 8192 bytes, linear)
+[    0.096331] NET: Registered PF_UNIX/PF_LOCAL protocol family
+[    0.096748] NET: Registered PF_XDP protocol family
+[    0.097116] PCI: CLS 0 bytes, default 64
+[    0.097521] Trying to unpack rootfs image as initramfs...
+[    0.098068] Freeing initrd memory: 4K
+[    0.098372] kvm [1]: HYP mode not available
+[    0.098841] Initialise system trusted keyrings
+[    0.099156] Key type blacklist registered
+[    0.099541] workingset: timestamp_bits=42 max_order=17 bucket_order=0
+[    0.100186] fuse: init (API version 7.41)
+[    0.100647] integrity: Platform Keyring initialized
+[    0.101014] integrity: Machine keyring initialized
+[    0.112126] Key type asymmetric registered
+[    0.112460] Asymmetric key parser 'x509' registered
+[    0.113608] Block layer SCSI generic (bsg) driver version 0.4 loaded (major 246)
+[    0.115497] pl061_gpio 9030000.pl061: PL061 GPIO chip registered
+[    0.115975] pci-host-generic 4010000000.pcie: host bridge /pcie@10000000 ranges:
+[    0.116499] pci-host-generic 4010000000.pcie:       IO 0x003eff0000..0x003effffff -> 0x0000000000
+[    0.117127] pci-host-generic 4010000000.pcie:      MEM 0x0010000000..0x003efeffff -> 0x0010000000
+[    0.117766] pci-host-generic 4010000000.pcie:      MEM 0x8000000000..0xffffffffff -> 0x8000000000
+[    0.118417] pci-host-generic 4010000000.pcie: Memory resource size exceeds max for 32 bits
+[    0.118997] pci-host-generic 4010000000.pcie: ECAM at [mem 0x4010000000-0x401fffffff] for [bus 00-ff]
+[    0.119663] pci-host-generic 4010000000.pcie: PCI host bridge to bus 0000:00
+[    0.120176] pci_bus 0000:00: root bus resource [bus 00-ff]
+[    0.120556] pci_bus 0000:00: root bus resource [io  0x0000-0xffff]
+[    0.120991] pci_bus 0000:00: root bus resource [mem 0x10000000-0x3efeffff]
+[    0.121477] pci_bus 0000:00: root bus resource [mem 0x8000000000-0xffffffffff]
+[    0.122025] pci 0000:00:00.0: [1b36:0008] type 00 class 0x060000 conventional PCI endpoint
+[    0.122737] pci 0000:00:01.0: [1af4:1000] type 00 class 0x020000 conventional PCI endpoint
+[    0.123360] pci 0000:00:01.0: BAR 0 [io  0x0000-0x001f]
+[    0.123741] pci 0000:00:01.0: BAR 1 [mem 0x00000000-0x00000fff]
+[    0.124185] pci 0000:00:01.0: BAR 4 [mem 0x00000000-0x00003fff 64bit pref]
+[    0.124678] pci 0000:00:01.0: ROM [mem 0x00000000-0x0003ffff pref]
+[    0.125306] pci 0000:00:01.0: ROM [mem 0x10000000-0x1003ffff pref]: assigned
+[    0.125810] pci 0000:00:01.0: BAR 4 [mem 0x8000000000-0x8000003fff 64bit pref]: assigned
+[    0.126385] pci 0000:00:01.0: BAR 1 [mem 0x10040000-0x10040fff]: assigned
+[    0.126869] pci 0000:00:01.0: BAR 0 [io  0x1000-0x101f]: assigned
+[    0.127309] pci_bus 0000:00: resource 4 [io  0x0000-0xffff]
+[    0.127713] pci_bus 0000:00: resource 5 [mem 0x10000000-0x3efeffff]
+[    0.128152] pci_bus 0000:00: resource 6 [mem 0x8000000000-0xffffffffff]
+[    0.128897] virtio-pci 0000:00:01.0: enabling device (0000 -> 0003)
+[    0.129822] Serial: 8250/16550 driver, 4 ports, IRQ sharing enabled
+[    0.130522] Serial: AMBA driver
+[    0.130764] msm_serial: driver initialized
+[    0.131209] Key type psk registered
+[    0.131763] rtc-pl031 9010000.pl031: registered as rtc0
+[    0.132202] rtc-pl031 9010000.pl031: setting system clock to 2026-10-21T13:09:30 UTC (1792588170)
+[    0.133038] hw perfevents: enabled with armv8_pmuv3 PMU driver, 1 (0,80000000) counters available
+[    0.133894] NET: Registered PF_INET6 protocol family
+[    0.135246] Segment Routing with IPv6
+[    0.135517] In-situ OAM (IOAM) with IPv6
+[    0.135799] mip6: Mobile IPv6
+[    0.136011] NET: Registered PF_PACKET protocol family
+[    0.137113] registered taskstats version 1
+[    0.137503] Loading compiled-in X.509 certificates
+[    0.148752] Loaded X.509 cert 'Build time autogenerated kernel key: 2eaae14de63d2271acb18aaa8b05c6df6d13a4f1'
+[    0.150292] Demotion targets for Node 0: null
+[    0.150702] Key type .fscrypt registered
+[    0.150995] Key type fscrypt-provisioning registered
+[    0.152427] Key type encrypted registered
+[    0.152724] AppArmor: AppArmor sha256 policy hashing enabled
+[    0.153122] ima: No TPM chip found, activating TPM-bypass!
+[    0.153508] ima: Allocated hash algorithm: sha256
+[    0.153836] ima: No architecture policies found
+[    0.154156] evm: Initialising EVM extended attributes:
+[    0.154490] evm: security.selinux
+[    0.154713] evm: security.SMACK64 (disabled)
+[    0.155012] evm: security.SMACK64EXEC (disabled)
+[    0.155338] evm: security.SMACK64TRANSMUTE (disabled)
+[    0.155686] evm: security.SMACK64MMAP (disabled)
+[    0.156002] evm: security.apparmor
+[    0.156243] evm: security.ima
+[    0.156443] evm: security.capability
+[    0.156690] evm: HMAC attrs: 0x1
+[    0.161065] clk: Disabling unused clocks
+[    0.161389] PM: genpd: Disabling unused power domains
+[    0.162358] Freeing unused kernel memory: 2176K
+[    0.163567] Checked W+X mappings: passed, no W+X pages found
+[    0.163990] Run /init as init process
+mount proc on /proc: ok
+mount sysfs on /sys: ok
+mount devtmpfs on /dev: ok
+avfprobe: hello from the guest (pid 1)
+=== uname ===
+Linux 6.12.111+deb13-cloud-arm64 #1 SMP Debian 6.12.111-1 (2026-09-28) aarch64
+=== /proc/cmdline ===
+console=ttyAMA0 panic=-1
+=== /sys/devices/system/cpu/online ===
+0-1
+=== /sys/devices/system/cpu/possible ===
+0-1
+=== /sys/devices/system/cpu/cpu0/regs/identification/midr_el1 ===
+0x00000000610f0000
+=== /sys/devices/system/cpu/cpu0/regs/identification/revidr_el1 ===
+0x0000000000000000
+=== /proc/cpuinfo ===
+processor	: 0
+BogoMIPS	: 48.00
+Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb paca pacg dcpodp flagm2 frint
+CPU implementer	: 0x61
+CPU architecture: 8
+CPU variant	: 0x0
+CPU part	: 0x000
+CPU revision	: 0
+
+processor	: 1
+BogoMIPS	: 48.00
+Features	: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics fphp asimdhp cpuid asimdrdm jscvt fcma lrcpc dcpop sha3 asimddp sha512 asimdfhm dit uscat ilrcpc flagm sb paca pacg dcpodp flagm2 frint
+CPU implementer	: 0x61
+CPU architecture: 8
+CPU variant	: 0x0
+CPU part	: 0x000
+CPU revision	: 0
+
+=== /proc/meminfo ===
+MemTotal:         483392 kB
+MemFree:          464124 kB
+MemAvailable:     460276 kB
+Buffers:               0 kB
+Cached:                0 kB
+SwapCached:            0 kB
+Active:                0 kB
+Inactive:              0 kB
+Active(anon):          0 kB
+Inactive(anon):        0 kB
+Active(file):          0 kB
+Inactive(file):        0 kB
+Unevictable:           0 kB
+Mlocked:               0 kB
+SwapTotal:             0 kB
+SwapFree:              0 kB
+Dirty:                 0 kB
+Writeback:             0 kB
+AnonPages:             0 kB
+Mapped:                0 kB
+Shmem:                 0 kB
+KReclaimable:        616 kB
+Slab:               7476 kB
+SReclaimable:        616 kB
+SUnreclaim:         6860 kB
+KernelStack:         960 kB
+PageTables:            8 kB
+SecPageTables:         0 kB
+NFS_Unstable:          0 kB
+Bounce:                0 kB
+WritebackTmp:          0 kB
+CommitLimit:      241696 kB
+Committed_AS:        224 kB
+VmallocTotal:   135288315904 kB
+VmallocUsed:        3836 kB
+VmallocChunk:          0 kB
+Percpu:              296 kB
+HardwareCorrupted:     0 kB
+AnonHugePages:         0 kB
+ShmemHugePages:        0 kB
+ShmemPmdMapped:        0 kB
+FileHugePages:         0 kB
+FilePmdMapped:         0 kB
+CmaTotal:          65536 kB
+CmaFree:           65152 kB
+HugePages_Total:       0
+HugePages_Free:        0
+HugePages_Rsvd:        0
+HugePages_Surp:        0
+Hugepagesize:       2048 kB
+Hugetlb:               0 kB
+=== /proc/iomem ===
+08000000-0800ffff : GICD
+080a0000-08ffffff : GICR
+09000000-09000fff : pl011@9000000
+  09000000-09000fff : 9000000.pl011 pl011@9000000
+09010000-09010fff : pl031@9010000
+  09010000-09010fff : rtc-pl031
+09030000-09030fff : pl061@9030000
+  09030000-09030fff : 9030000.pl061 pl061@9030000
+10000000-3efeffff : pcie@10000000
+  10000000-1003ffff : 0000:00:01.0
+  10040000-10040fff : 0000:00:01.0
+40000000-5fffffff : System RAM
+  40200000-41a9ffff : Kernel code
+  41aa0000-41cbffff : reserved
+  41cc0000-4206ffff : Kernel data
+  48000000-48001fff : reserved
+  48200000-482fffff : reserved
+  5b540000-5fdfffff : reserved
+  5fe21000-5fea1fff : reserved
+  5fea2000-5fee9fff : reserved
+  5feea000-5feeafff : reserved
+  5feeb000-5fefffff : reserved
+  5ff00000-5ff09fff : reserved
+  5ff0a000-5fffffff : reserved
+4010000000-401fffffff : PCI ECAM
+8000000000-ffffffffff : pcie@10000000
+  8000000000-8000003fff : 0000:00:01.0
+    8000000000-8000003fff : virtio-pci-modern
+=== /proc/interrupts ===
+           CPU0       CPU1       
+ 11:         50         48     GICv3  27 Level     arch_timer
+ 13:          0          0     GICv3  33 Level     uart-pl011
+ 16:          0          0     GICv3  34 Level     rtc-pl031
+ 17:          0          0     GICv3  23 Level     arm-pmu
+IPI0:        55         43       Rescheduling interrupts
+IPI1:       250        223       Function call interrupts
+IPI2:         0          0       CPU stop interrupts
+IPI3:         0          0       CPU stop NMIs
+IPI4:         0          0       Timer broadcast interrupts
+IPI5:         0          0       IRQ work interrupts
+IPI6:         0          0       CPU backtrace interrupts
+IPI7:         0          0       KGDB roundup interrupts
+Err:          0
+=== /proc/consoles ===
+ttyAMA0              -W- (EC  p a)  204:64
+=== /sys/hypervisor/type ===
+(unavailable, errno 2)
+=== /sys/kernel/mm/transparent_hugepage/enabled ===
+always madvise [never]
+=== pci devices ===
+0000:00:01.0 vendor=0x1af4 device=0x1000 class=0x020000
+0000:00:00.0 vendor=0x1b36 device=0x0008 class=0x060000
+=== virtio devices ===
+virtio0 virtio-id=0x0001 vendor=0x1af4
+=== platform devices ===
+a002400.virtio_mmio
+a000e00.virtio_mmio
+alarmtimer.0.auto
+0.flash
+a003000.virtio_mmio
+a001a00.virtio_mmio
+a001600.virtio_mmio
+a002200.virtio_mmio
+a000c00.virtio_mmio
+a000800.virtio_mmio
+a001400.virtio_mmio
+a002000.virtio_mmio
+a000a00.virtio_mmio
+a000600.virtio_mmio
+a001200.virtio_mmio
+a000400.virtio_mmio
+psci
+a003e00.virtio_mmio
+a001000.virtio_mmio
+gpio-keys
+a000200.virtio_mmio
+a003c00.virtio_mmio
+a003800.virtio_mmio
+timer
+a002e00.virtio_mmio
+a000000.virtio_mmio
+psci-cpuidle
+a003a00.virtio_mmio
+a003600.virtio_mmio
+9020000.fw-cfg
+platform-bus@c000000
+a002c00.virtio_mmio
+a002800.virtio_mmio
+a003400.virtio_mmio
+a001e00.virtio_mmio
+serial8250
+4010000000.pcie
+pmu
+a002a00.virtio_mmio
+a002600.virtio_mmio
+a003200.virtio_mmio
+a001c00.virtio_mmio
+a001800.virtio_mmio
+=== tty devices ===
+tty28
+ptmx
+tty56
+tty18
+tty1
+tty46
+tty36
+tty26
+tty54
+tty16
+tty44
+console
+tty34
+tty62
+tty24
+tty8
+tty52
+tty14
+tty42
+ttyS2
+tty32
+tty60
+tty22
+tty6
+tty50
+tty12
+tty40
+ttyS0
+tty30
+tty59
+tty20
+tty4
+tty49
+tty10
+tty39
+tty29
+tty57
+tty19
+tty2
+tty47
+tty37
+tty27
+tty55
+tty17
+tty0
+tty45
+tty35
+tty63
+tty25
+tty9
+tty53
+tty15
+tty43
+tty
+ttyS3
+tty33
+tty61
+tty23
+tty7
+tty51
+tty13
+ttyAMA0
+tty41
+ttyS1
+tty31
+tty21
+tty5
+tty11
+tty58
+tty3
+tty48
+tty38
+=== device tree ===
+/
+  compatible = linux,dummy-virt
+  model = linux,dummy-virt
+  /virtio_mmio@a000400
+    compatible = virtio,mmio
+    reg = <0x00000000 0x0a000400 0x00000000 0x00000200>
+    interrupts = <0x00000000 0x00000012 0x00000001>
+  /virtio_mmio@a002a00
+    compatible = virtio,mmio
+    reg = <0x00000000 0x0a002a00 0x00000000 0x00000200>
+    interrupts = <0x00000000 0x00000025 0x00000001>
+  /virtio_mmio@a001600
+    compatible = virtio,mmio
+    reg = <0x00000000 0x0a001600 0x00000000 0x00000200>
+    interrupts = <0x00000000 0x0000001b 0x00000001>
+  /virtio_mmio@a003c00
+    compatible = virtio,mmio
+    reg = <0x00000000 0x0a003c00 0x00000000 0x00000200>
+    interrupts = <0x00000000 0x0000002e 0x00000001>
+  /intc@8000000
+    compatible = arm,gic-v3
+    reg = <0x00000000 0x08000000 0x00000000 0x00010000 0x00000000 0x080a0000 0x00000000 0x00f60000>
+    ranges = <>
+    /intc@8000000/v2m@8020000
+      compatible = arm,gic-v2m-frame
+      reg = <0x00000000 0x08020000 0x00000000 0x00001000>
+  /virtio_mmio@a002800
+    compatible = virtio,mmio
+    reg = <0x00000000 0x0a002800 0x00000000 0x00000200>
+    interrupts = <0x00000000 0x00000024 0x00000001>
+  /virtio_mmio@a000c00
+    compatible = virtio,mmio
+    reg = <0x00000000 0x0a000c00 0x00000000 0x00000200>
+    interrupts = <0x00000000 0x00000016 0x00000001>
+  /virtio_mmio@a001e00
+    compatible = virtio,mmio
+    reg = <0x00000000 0x0a001e00 0x00000000 0x00000200>
+    interrupts = <0x00000000 0x0000001f 0x00000001>
+  /virtio_mmio@a003000
+    compatible = virtio,mmio
+    reg = <0x00000000 0x0a003000 0x00000000 0x00000200>
+    interrupts = <0x00000000 0x00000028 0x00000001>
+  /virtio_mmio@a000000
+    compatible = virtio,mmio
+    reg = <0x00000000 0x0a000000 0x00000000 0x00000200>
+    interrupts = <0x00000000 0x00000010 0x00000001>
+  /memory@40000000
+    reg = <0x00000000 0x40000000 0x00000000 0x20000000>
+    device_type = memory
+  /apb-pclk
+    compatible = fixed-clock
+    clock-frequency = <0x016e3600>
+  /virtio_mmio@a001200
+    compatible = virtio,mmio
+    reg = <0x00000000 0x0a001200 0x00000000 0x00000200>
+    interrupts = <0x00000000 0x00000019 0x00000001>
+  /virtio_mmio@a002400
+    compatible = virtio,mmio
+    reg = <0x00000000 0x0a002400 0x00000000 0x00000200>
+    interrupts = <0x00000000 0x00000022 0x00000001>
+  /virtio_mmio@a003600
+    compatible = virtio,mmio
+    reg = <0x00000000 0x0a003600 0x00000000 0x00000200>
+    interrupts = <0x00000000 0x0000002b 0x00000001>
+  /virtio_mmio@a001a00
+    compatible = virtio,mmio
+    reg = <0x00000000 0x0a001a00 0x00000000 0x00000200>
+    interrupts = <0x00000000 0x0000001d 0x00000001>
+  /flash@0
+    compatible = cfi-flash
+    reg = <0x00000000 0x00000000 0x00000000 0x04000000 0x00000000 0x04000000 0x00000000 0x04000000>
+  /psci
+    compatible = arm,psci-1.0", "arm,psci-0.2", "arm,psci
+    method = hvc
+  /virtio_mmio@a000600
+    compatible = virtio,mmio
+    reg = <0x00000000 0x0a000600 0x00000000 0x00000200>
+    interrupts = <0x00000000 0x00000013 0x00000001>
+  /virtio_mmio@a002c00
+    compatible = virtio,mmio
+    reg = <0x00000000 0x0a002c00 0x00000000 0x00000200>
+    interrupts = <0x00000000 0x00000026 0x00000001>
+  /virtio_mmio@a001800
+    compatible = virtio,mmio
+    reg = <0x00000000 0x0a001800 0x00000000 0x00000200>
+    interrupts = <0x00000000 0x0000001c 0x00000001>
+  /virtio_mmio@a003e00
+    compatible = virtio,mmio
+    reg = <0x00000000 0x0a003e00 0x00000000 0x00000200>
+    interrupts = <0x00000000 0x0000002f 0x00000001>
+  /gpio-keys
+    compatible = gpio-keys
+    /gpio-keys/poweroff
+  /virtio_mmio@a000e00
+    compatible = virtio,mmio
+    reg = <0x00000000 0x0a000e00 0x00000000 0x00000200>
+    interrupts = <0x00000000 0x00000017 0x00000001>
+  /virtio_mmio@a002000
+    compatible = virtio,mmio
+    reg = <0x00000000 0x0a002000 0x00000000 0x00000200>
+    interrupts = <0x00000000 0x00000020 0x00000001>
+  /fw-cfg@9020000
+    compatible = qemu,fw-cfg-mmio
+    reg = <0x00000000 0x09020000 0x00000000 0x00000018>
+  /timer
+    compatible = arm,armv8-timer", "arm,armv7-timer
+    interrupts = <0x00000001 0x0000000d 0x00000004 0x00000001 0x0000000e 0x00000004 0x00000001 0x0000000b 0x00000004 0x00000001 0x0000000a 0x00000004>
+  /virtio_mmio@a003200
+    compatible = virtio,mmio
+    reg = <0x00000000 0x0a003200 0x00000000 0x00000200>
+    interrupts = <0x00000000 0x00000029 0x00000001>
+  /virtio_mmio@a000200
+    compatible = virtio,mmio
+    reg = <0x00000000 0x0a000200 0x00000000 0x00000200>
+    interrupts = <0x00000000 0x00000011 0x00000001>
+  /pl031@9010000
+    compatible = arm,pl031", "arm,primecell
+    reg = <0x00000000 0x09010000 0x00000000 0x00001000>
+    interrupts = <0x00000000 0x00000002 0x00000004>
+  /aliases
+  /virtio_mmio@a001400
+    compatible = virtio,mmio
+    reg = <0x00000000 0x0a001400 0x00000000 0x00000200>
+    interrupts = <0x00000000 0x0000001a 0x00000001>
+  /pcie@10000000
+    compatible = pci-host-ecam-generic
+    reg = <0x00000040 0x10000000 0x00000000 0x10000000>
+    device_type = pci
+    ranges = <0x01000000 0x00000000 0x00000000 0x00000000 0x3eff0000 0x00000000 0x00010000 0x02000000 0x00000000 0x10000000 0x00000000 0x10000000 0x00000000 0x2eff0000 0x03000000 0x00000080 0x00000000 0x00000080 0x00000000 0x00000080 0x00000000>
+  /virtio_mmio@a003a00
+    compatible = virtio,mmio
+    reg = <0x00000000 0x0a003a00 0x00000000 0x00000200>
+    interrupts = <0x00000000 0x0000002d 0x00000001>
+  /platform-bus@c000000
+    compatible = qemu,platform", "simple-bus
+    ranges = <0x00000000 0x00000000 0x0c000000 0x02000000>
+  /virtio_mmio@a002600
+    compatible = virtio,mmio
+    reg = <0x00000000 0x0a002600 0x00000000 0x00000200>
+    interrupts = <0x00000000 0x00000023 0x00000001>
+  /virtio_mmio@a000a00
+    compatible = virtio,mmio
+    reg = <0x00000000 0x0a000a00 0x00000000 0x00000200>
+    interrupts = <0x00000000 0x00000015 0x00000001>
+  /chosen
+    bootargs = console=ttyAMA0 panic=-1
+    stdout-path = /pl011@9000000
+    linux,initrd-start = <0x00000000 0x48000000>
+    linux,initrd-end = <0x00000000 0x480017d7>
+  /virtio_mmio@a003800
+    compatible = virtio,mmio
+    reg = <0x00000000 0x0a003800 0x00000000 0x00000200>
+    interrupts = <0x00000000 0x0000002c 0x00000001>
+  /virtio_mmio@a001c00
+    compatible = virtio,mmio
+    reg = <0x00000000 0x0a001c00 0x00000000 0x00000200>
+    interrupts = <0x00000000 0x0000001e 0x00000001>
+  /virtio_mmio@a000800
+    compatible = virtio,mmio
+    reg = <0x00000000 0x0a000800 0x00000000 0x00000200>
+    interrupts = <0x00000000 0x00000014 0x00000001>
+  /pl061@9030000
+    compatible = arm,pl061", "arm,primecell
+    reg = <0x00000000 0x09030000 0x00000000 0x00001000>
+    interrupts = <0x00000000 0x00000007 0x00000004>
+  /virtio_mmio@a002e00
+    compatible = virtio,mmio
+    reg = <0x00000000 0x0a002e00 0x00000000 0x00000200>
+    interrupts = <0x00000000 0x00000027 0x00000001>
+  /pmu
+    compatible = arm,armv8-pmuv3
+    interrupts = <0x00000001 0x00000007 0x00000004>
+  /cpus
+    /cpus/cpu@1
+      compatible = arm,armv8
+      reg = <0x00000001>
+      device_type = cpu
+      enable-method = psci
+    /cpus/cpu-map
+      /cpus/cpu-map/socket0
+        /cpus/cpu-map/socket0/cluster0
+          /cpus/cpu-map/socket0/cluster0/core1
+          /cpus/cpu-map/socket0/cluster0/core0
+    /cpus/cpu@0
+      compatible = arm,armv8
+      reg = <0x00000000>
+      device_type = cpu
+      enable-method = psci
+  /virtio_mmio@a001000
+    compatible = virtio,mmio
+    reg = <0x00000000 0x0a001000 0x00000000 0x00000200>
+    interrupts = <0x00000000 0x00000018 0x00000001>
+  /virtio_mmio@a002200
+    compatible = virtio,mmio
+    reg = <0x00000000 0x0a002200 0x00000000 0x00000200>
+    interrupts = <0x00000000 0x00000021 0x00000001>
+  /pl011@9000000
+    compatible = arm,pl011", "arm,primecell
+    reg = <0x00000000 0x09000000 0x00000000 0x00001000>
+    interrupts = <0x00000000 0x00000001 0x00000004>
+  /virtio_mmio@a003400
+    compatible = virtio,mmio
+    reg = <0x00000000 0x0a003400 0x00000000 0x00000200>
+    interrupts = <0x00000000 0x0000002a 0x00000001>
+=== AVFPROBE DONE ===
+[    0.269730] reboot: Power down
