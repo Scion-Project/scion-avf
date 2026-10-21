@@ -1,0 +1,10 @@
+# Build output
+probe/guest/out/
+probe/app/build/
+probe/app/app/build/
+probe/app/.gradle/
+probe/app/local.properties
+.idea/
+*.iml
+.DS_Store
+probe/results/
