@@ -7,3 +7,4 @@ probe/app/local.properties
 .idea/
 *.iml
 .DS_Store
+probe/results/
