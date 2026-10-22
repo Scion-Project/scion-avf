@@ -5,12 +5,12 @@
 # framebuffer (SCFB) as its screen and virtio-input multi-touch, on an adb-connected phone.
 #
 #   display/run-os.sh --kernel IMAGE --initrd PAYLOAD [--disk FILE]... [--params "..."]
-#                     [-s SERIAL] [--mem MIB] [--run S] [--fb WxH] [--tag T] [--shots N] [--out DIR]
+#                     [-s SERIAL] [--mem MIB] [--cpus N | --match-host-cpus] [--run S] [--fb WxH] [--tag T] [--shots N] [--out DIR]
 #
 # HackiOS: --kernel avf/shim/out/Image (avfboot) --initrd payload.bin (xnuloader/mkpayload.py:
 # kernel + ramdisk=root.apfs) --disk system.apfs --params "rd=md0 md0=rvblk0 -v" --fb 1125x2436.
 # The app adds scfb.addr/size/w/h itself. Files go into the app's internal storage with run-as
-# (a disk is streamed with `adb exec-in` and skipped if a file of the same size is already
+# (pushed to /data/local/tmp, copied in, removed; skipped if a file of the same size is already
 # there). Screenshots every --shots seconds while it runs. Takes /data/local/tmp/pixel.lock and
 # reverts the grants and the hidden-API exemption on exit. Nothing here is Apple's: the images
 # are whatever the caller has.
@@ -38,6 +38,7 @@ while [[ $# -gt 0 ]]; do
     --tag) TAG="$2"; shift 2 ;;
     --shots) SHOTS="$2"; shift 2 ;;
     --match-host-cpus) CPUS=(--ez match_host_cpus true); shift ;;
+    --cpus) CPUS=(--ei cpu_count "$2"); shift 2 ;;
     --keep-grants) KEEP_GRANTS=1; shift ;;
     --out) OUT="$2"; shift 2 ;;
     -h|--help) sed -n '2,/^set -e/p' "$0" | sed '$d;s/^# \{0,1\}//'; exit 0 ;;
@@ -62,14 +63,21 @@ put() {  # put <local> <name>: into files/guest/<name>, unless the same size is 
   have=$(sh_ "run-as $AVF_PKG stat -c %s files/guest/$2 2>/dev/null" || true)
   if [[ "$have" == "$size" ]]; then echo "  $2: already there ($size bytes)"; return; fi
   echo "  $2: $size bytes"
-  "${ADB[@]}" exec-in "run-as $AVF_PKG sh -c 'cat > files/guest/$2'" < "$1"
+  # adb push is reliable; `exec-in` returned before run-as had written everything. The app can't
+  # read what adb writes, so the push lands in /data/local/tmp and run-as copies it in.
+  "${ADB[@]}" push "$1" "/data/local/tmp/avfdisplay-$2" </dev/null >/dev/null || die "push of $2 failed"
+  sh_rc "cat /data/local/tmp/avfdisplay-$2 | run-as $AVF_PKG sh -c 'cat > files/guest/$2'" </dev/null
+  sh_rc rm -f "/data/local/tmp/avfdisplay-$2" </dev/null
   have=$(sh_ "run-as $AVF_PKG stat -c %s files/guest/$2")
   [[ "$have" == "$size" ]] || die "copy of $2 is $have bytes, expected $size"
 }
 log "guest files (run-as)"
 sh_rc "run-as $AVF_PKG mkdir -p files/guest" </dev/null
-put "$KERNEL" os-kernel
-put "$INITRD" os-initrd
+# kernel and payload are named by content, so a rebuilt one of the same size is never mistaken for the old
+hash() { if command -v md5 >/dev/null; then md5 -q "$1"; else md5sum "$1" | cut -d' ' -f1; fi | cut -c1-12; }
+KNAME="os-kernel-$(hash "$KERNEL")"; INAME="os-initrd-$(hash "$INITRD")"
+put "$KERNEL" "$KNAME"
+put "$INITRD" "$INAME"
 names=()
 for d in ${DISKS[@]+"${DISKS[@]}"}; do n="disk-$(basename "$d")"; put "$d" "$n"; names+=("$n"); done
 disks=$(IFS=,; echo "${names[*]:-}")
@@ -85,7 +93,7 @@ disks=$(IFS=,; echo "${names[*]:-}")
 shots=$!
 
 w=${FB%x*}; h=${FB#*x}
-avf_run_one "$TAG" "$RUN_S" --ez os_mode true --es kernel os-kernel --es initrd os-initrd --es disks "$disks" \
+avf_run_one "$TAG" "$RUN_S" --ez os_mode true --es kernel "$KNAME" --es initrd "$INAME" --es disks "$disks" \
   --es os_params "$PARAMS" --el mem_mib "$MEM" --ei fb_w "$w" --ei fb_h "$h" --ei run_s "$RUN_S" \
   ${CPUS[@]+"${CPUS[@]}"} || true
 kill "$shots" 2>/dev/null || true

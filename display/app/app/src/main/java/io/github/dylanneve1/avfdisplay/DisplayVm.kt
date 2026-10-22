@@ -60,6 +60,7 @@ class DisplayVm(private val ctx: Context, private val opts: Options, private val
         val extraParams: String = "",
         val disks: List<String> = emptyList(),
         val matchHostCpus: Boolean = false,
+        val cpuCount: Int = 0,        // > 0: exactly this many vCPUs (raw config CpuTopology.cpuCount; the Java API has 1 or host)
         val tag: String = "display",
     )
 
@@ -192,6 +193,14 @@ class DisplayVm(private val ctx: Context, private val opts: Options, private val
             java.lang.reflect.Array.set(arr, 0, b)
             rc.getField("customMemoryBackingFiles").set(raw, arr)
 
+            if (opts.cpuCount > 0) {
+                val ctCls = cls("$VS.CpuOptions\$CpuTopology")
+                val co = rc.getField("cpuOptions").get(raw) ?: cls("$VS.CpuOptions").getConstructor().newInstance().also {
+                    rc.getField("cpuOptions").set(raw, it)
+                }
+                co.javaClass.getField("cpuTopology").set(co, ctCls.getMethod("cpuCount", Int::class.javaPrimitiveType).invoke(null, opts.cpuCount))
+                log("createVm: ${opts.cpuCount} vCPUs")
+            }
             if (!opts.stockDisplay) {
                 val pair = ParcelFileDescriptor.createSocketPair()
                 ownTouchSock = pair[0]
