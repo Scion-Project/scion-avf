@@ -1,0 +1,39 @@
+# AVF display/touch test  view=1080x2424 guest=540x1212 dpi=205 mem=512MiB stock_display=false gpu_backend=null fmt=xb24
+stock display hand-off: ServiceManager.checkService(android.system.virtualizationservice) = null (lookup refused or service absent)
+SharedMemory fd -> /dev/ashmema791fd67-4e2c-4c28-8539-8c63475b5ea3
+region: 32 MiB at guest IPA 0x9dc00000, host 0x730ea00000
+params: console=hvc0 earlycon=uart8250,mmio,0x3f8 panic=-1 rdinit=/init mem=476M scfb.addr=0x9dc00000 scfb.size=0x2000000 scfb.w=540 scfb.h=1212 scfb.bench=5 scfb.secs=0 scfb.fmt=xb24
+hooked IVirtualizationService.createVm
+createVm: +customMemoryBackingFile ipa=0x9dc00000 size=0x2000000; displayConfig=false gpuConfig=false inputDevices=[android.system.virtualizationservice.InputDevice@c3fd8b9]
+run() ok after 26 ms
+guest: SCFB hello
+guest: VIRTIO dev=virtio1 id=0x0003
+guest: VIRTIO dev=virtio4 id=0x0012
+guest: VIRTIO dev=virtio2 id=0x0003
+guest: VIRTIO dev=virtio0 id=0x0003
+guest: VIRTIO dev=virtio5 id=0x0013
+guest: VIRTIO dev=virtio3 id=0x0004
+guest: SCFB module=/lib/modules/evdev.ko.xz rc=0
+guest: SCFB module=/lib/modules/virtio_input.ko.xz rc=0
+guest: INPUTDEV path=/dev/input/event0 name="scion-touch" mt_x=0:540 mt_y=0:1212
+guest: SCFB inputs=1
+guest: SCFB mapped addr=0x9dc00000 size=0x2000000 host_pre=1
+guest: SCFB bench=start
+first frame presented 739 ms after run()
+guest: SCFB bench=done frames=1378 ms=5000 guest_fps_x10=2755 mbps=721 host_frames=1376 host_fps_x10=2751
+bench: guest [SCFB bench=done frames=1378 ms=5000 guest_fps_x10=2755 mbps=721 host_frames=1376 host_fps_x10=2751]; host presented 598 frames (119.6 fps), skipped 769, copy avg 0.37 ms max 2.16 ms
+guest: SCFB stats frames=1503 fps_x10=623 host_seq=1502 host_fps_x10=628 input_seq=117
+guest: SCFB stats frames=1627 fps_x10=618 host_seq=1626 host_fps_x10=618 input_seq=236
+guest: SCFB stats frames=1750 fps_x10=614 host_seq=1749 host_fps_x10=614 input_seq=354
+touch: sent 400 reports, guest logged 400; last sent (guest px) 301,469; guest: TOUCH seq=399 down=1 s0=301,469 t_us=12112397
+input->frame seen ms p50/p90/p99: [7.911433, 10.757265, 16.551146]; ->posted: [9.234141, 12.159453, 18.056641]
+interactive for 10 s: touch the screen
+guest: SCFB stats frames=1868 fps_x10=588 host_seq=1867 host_fps_x10=588 input_seq=400
+guest: SCFB stats frames=2003 fps_x10=673 host_seq=2002 host_fps_x10=673 input_seq=436
+guest: SCFB stats frames=2154 fps_x10=754 host_seq=2153 host_fps_x10=754 input_seq=506
+guest: SCFB stats frames=2309 fps_x10=771 host_seq=2308 host_fps_x10=771 input_seq=579
+guest: SCFB stats frames=2427 fps_x10=589 host_seq=2426 host_fps_x10=589 input_seq=581
+interactive: 181 real touch reports, latency posted p50/p90 [6.888047, 9.222995]; steady host fps 67.7
+present loop ended rc=0
+VM stopped: reason 1
+VERDICT: OK

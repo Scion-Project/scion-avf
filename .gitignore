@@ -12,3 +12,11 @@ bench/out/
 bench/results/
 results/
 __pycache__/
+display/guest/out/
+display/app/build/
+display/app/app/build/
+display/app/app/.cxx/
+display/app/.gradle/
+display/app/.kotlin/
+display/app/local.properties
+display/results/
