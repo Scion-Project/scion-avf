@@ -12,7 +12,7 @@
 # Takes the shared phone lock (/data/local/tmp/pixel.lock), installs the harness app
 # (gpu3d/app, its own package: io.github.dylanneve1.gpu3dprobe), grants it the two VM
 # permissions, sets the hidden-API exemption for the custom-image config, runs, and restores
-# the exemption and releases the lock on exit. It touches no other app.
+# the exemption, revokes the grants and releases the lock on exit. It touches no other app.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 PKG=io.github.dylanneve1.gpu3dprobe
@@ -53,6 +53,9 @@ cleanup() {
   if [[ "$old" == "null" || -z "$old" ]]; then "${ADB[@]}" shell settings delete global "$EXEMPT_KEY" >/dev/null || true
   else "${ADB[@]}" shell settings put global "$EXEMPT_KEY" "'$old'" >/dev/null || true; fi
   "${ADB[@]}" shell am force-stop "$PKG" || true
+  for p in MANAGE_VIRTUAL_MACHINE USE_CUSTOM_VIRTUAL_MACHINE; do
+    "${ADB[@]}" shell pm revoke "$PKG" "android.permission.$p" >/dev/null 2>&1 || true
+  done
   "${ADB[@]}" shell 'rmdir /data/local/tmp/pixel.lock' || true
 }
 trap cleanup EXIT
