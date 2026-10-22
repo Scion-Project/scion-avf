@@ -7,7 +7,7 @@
 #
 #   avf_pick_device [SERIAL]       choose the target, fail fast if none/ambiguous
 #   avf_setup <apk>                install, grant, exemption, keep screen on
-#   avf_push <local> <remote-dir>  push a file into the app's external files dir
+#   avf_push <local> <subdir>      copy a file into the app's internal files/<subdir> (run-as)
 #   avf_run_one <tag> <timeout_s> [am-start extras...]
 #                                  run the app once, pull <tag>-* into $OUT
 #   avf_teardown                   (also runs from the EXIT trap)
@@ -98,7 +98,8 @@ avf_setup() {
   sh_rc settings put global stay_on_while_plugged_in 7 </dev/null || true
   sh_rc input keyevent KEYCODE_WAKEUP </dev/null || true
   sh_rc wm dismiss-keyguard </dev/null || true
-  sh_rc mkdir -p "$AVF_DATA" </dev/null
+  # Don't mkdir $AVF_DATA from adb: a folder shell creates there belongs to shell,
+  # and the app can't use it (#6). The app creates it on its first run.
 }
 
 avf_teardown() {
@@ -124,11 +125,26 @@ avf_teardown() {
   fi
 }
 
-# avf_push <local-file> <remote-subdir-of-files-dir>
+# avf_push <local-file> <subdir>
+# Streams the file into the app's internal files/<subdir>/ as the app's own user
+# (run-as; the probe is debuggable), where the probe reads guest files from and
+# crosvm can open them. An `adb push` into the external files dir doesn't work:
+# when adb also creates the folder, the files belong to shell and the app can't
+# read them (#6).
 avf_push() {
   [[ -f "$1" ]] || die "missing $1 (build it first: see docs/AVF-BENCH.md)"
-  sh_rc mkdir -p "$AVF_DATA/$2" </dev/null
-  "${ADB[@]}" push "$1" "$AVF_DATA/$2/" </dev/null >/dev/null || die "adb push $1 failed"
+  local name want got
+  name="$(basename "$1")"
+  local tmp="/data/local/tmp/avf-push-$name"
+  sh_rc run-as "$AVF_PKG" mkdir -p "files/$2" </dev/null || die "run-as $AVF_PKG failed (is the debug APK installed?)"
+  # Stage in /data/local/tmp, then copy on the device in one adb shell call, which
+  # returns only when the copy is done. (adb exec-in can return before the
+  # device-side write has finished.)
+  "${ADB[@]}" push "$1" "$tmp" </dev/null >/dev/null || die "adb push $1 failed"
+  sh_rc "cat '$tmp' | run-as $AVF_PKG sh -c 'cat > files/$2/$name'; rm -f '$tmp'" </dev/null || die "copying $1 failed"
+  want=$(wc -c < "$1" | tr -d ' ')
+  got=$(sh_rc run-as "$AVF_PKG" stat -c %s "files/$2/$name" </dev/null | tr -d '\r')
+  [[ "$got" == "$want" ]] || die "copying $1 failed: $got of $want bytes on the device"
 }
 
 # avf_run_one <tag> <timeout_s> [extras...]
