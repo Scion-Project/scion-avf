@@ -9,7 +9,9 @@
 //
 // Output lines are plain text. Section headers look like "=== name ===" and
 // the last line is "=== AVFPROBE DONE ===" so a host can tell a complete run
-// from a truncated one.
+// from a truncated one. Just before it, a "=== summary ===" section holds
+// machine-readable "AVFKV key=value" lines (page size, RAM, CPUs, MIDR, virtio
+// and PCI ids, uptime at init) that the host tools lift into result.json.
 //
 // Run with "--dry-run" as an ordinary process (e.g. under adb shell) to test
 // the dumping code without mounting anything or powering off.
@@ -342,6 +344,81 @@ static void do_mount(const char *src, const char *dst, const char *type) {
     }
 }
 
+// ---- machine-readable summary --------------------------------------------
+
+static u64 g_pagesz;   // AT_PAGESZ from the auxiliary vector: the guest kernel's page size
+
+static void kv_file(const char *key, const char *path) {
+    puts_("AVFKV ");
+    puts_(key);
+    putc_('=');
+    print_line_of("", path);
+    putc_('\n');
+}
+
+static void kv_virtio(const char *dir, const char *name, int type, void *ctx) {
+    (void)type; (void)ctx;
+    char p[512], f[512];
+    join(p, sizeof p, dir, name);
+    join(f, sizeof f, p, "device");
+    print_line_of(" ", f);
+}
+
+static void kv_pci(const char *dir, const char *name, int type, void *ctx) {
+    (void)type; (void)ctx;
+    char p[512], f[512];
+    join(p, sizeof p, dir, name);
+    join(f, sizeof f, p, "vendor");
+    print_line_of(" ", f);
+    join(f, sizeof f, p, "device");
+    print_line_of(":", f);
+}
+
+static void kv_summary(void) {
+    section("summary");
+    puts_("AVFKV schema=1\nAVFKV kind=probe\n");
+    puts_("AVFKV page_size="); putu(g_pagesz); putc_('\n');
+    struct utsname u;
+    if (sys3(SYS_uname, &u, 0, 0) == 0) {
+        puts_("AVFKV kernel_release="); puts_(u.release); putc_('\n');
+        puts_("AVFKV machine="); puts_(u.machine); putc_('\n');
+    }
+    kv_file("cmdline", "/proc/cmdline");
+    kv_file("cpus_online", "/sys/devices/system/cpu/online");
+    kv_file("midr_el1", "/sys/devices/system/cpu/cpu0/regs/identification/midr_el1");
+    kv_file("uptime_s", "/proc/uptime");
+    kv_file("hypervisor_type", "/sys/hypervisor/type");
+    // MemTotal / MemAvailable, in kB
+    if (slurp("/proc/meminfo") > 0) {
+        static const char *const keys[] = {"MemTotal:", "MemAvailable:"};
+        static const char *const names[] = {"mem_total_kb", "mem_available_kb"};
+        for (int k = 0; k < 2; k++) {
+            for (char *l = fbuf; *l; ) {
+                char *e = l;
+                while (*e && *e != '\n') e++;
+                u64 kl = slen(keys[k]);
+                int m = 1;
+                for (u64 i = 0; i < kl; i++) if (l[i] != keys[k][i]) { m = 0; break; }
+                if (m) {
+                    char *v = l + kl;
+                    while (*v == ' ') v++;
+                    puts_("AVFKV "); puts_(names[k]); putc_('=');
+                    while (v < e && *v >= '0' && *v <= '9') putc_(*v++);
+                    putc_('\n');
+                    break;
+                }
+                l = *e ? e + 1 : e;
+            }
+        }
+    }
+    puts_("AVFKV virtio_ids=");
+    for_each_entry("/sys/bus/virtio/devices", kv_virtio, 0);
+    putc_('\n');
+    puts_("AVFKV pci_ids=");
+    for_each_entry("/sys/bus/pci/devices", kv_pci, 0);
+    putc_('\n');
+}
+
 static void probe(void) {
     section("uname");
     struct utsname u;
@@ -373,11 +450,18 @@ static void probe(void) {
     section("device tree");
     dt_walk(dt_root, 0);
 
+    kv_summary();
     section("AVFPROBE DONE");
 }
 
 int cmain(int argc, char **argv) {
     int dry = argc > 1 && seq(argv[1], "--dry-run");
+    {   // auxv follows argv[] and envp[]; AT_PAGESZ = 6
+        char **e = argv + argc + 1;
+        while (*e) e++;
+        for (u64 *av = (u64 *)(e + 1); av[0]; av += 2)
+            if (av[0] == 6) g_pagesz = av[1];
+    }
     int is_init = sys3(SYS_getpid, 0, 0, 0) == 1;
 
     if (!dry) {

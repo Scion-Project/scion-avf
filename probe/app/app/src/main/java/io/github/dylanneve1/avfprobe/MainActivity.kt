@@ -17,9 +17,11 @@ import android.widget.TextView
  * Also scriptable from adb (see probe/run-on-device.sh):
  *   am start -n io.github.dylanneve1.avfprobe/.MainActivity --ez autorun true \
  *     [--ez boot false] [--ez protected true] [--el mem_mib 256] \
- *     [--ez match_host_cpus true] [--el timeout_s 60] [--es params "..."]
+ *     [--ez match_host_cpus true] [--el timeout_s 60] [--es params "..."] \
+ *     [--es guest_dir guest] [--es kernel Image] [--es initrd initrd.img] [--es tag mem1024]
  * The report goes to logcat (tag AvfProbe) and to
- * /sdcard/Android/data/io.github.dylanneve1.avfprobe/files/report.txt.
+ * /sdcard/Android/data/io.github.dylanneve1.avfprobe/files/[<tag>-]report.txt;
+ * [<tag>-]result.json is written last and holds the machine-readable result.
  */
 class MainActivity : Activity() {
     private lateinit var text: TextView
@@ -62,6 +64,10 @@ class MainActivity : Activity() {
             matchHostCpus = i.getBooleanExtra("match_host_cpus", d.matchHostCpus),
             timeoutSec = i.getLongExtra("timeout_s", d.timeoutSec),
             params = i.getStringExtra("params") ?: d.params,
+            guestDir = i.getStringExtra("guest_dir") ?: d.guestDir,
+            kernelFile = i.getStringExtra("kernel") ?: d.kernelFile,
+            initrdFile = i.getStringExtra("initrd") ?: d.initrdFile,
+            tag = i.getStringExtra("tag") ?: d.tag,
         )
     }
 
