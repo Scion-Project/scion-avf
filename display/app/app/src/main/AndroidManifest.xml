@@ -10,6 +10,11 @@
         android:name="android.permission.USE_CUSTOM_VIRTUAL_MACHINE"
         tools:ignore="ProtectedPermissions" />
 
+    <!-- The os-mode VM runs in a foreground service (VmService), so it outlives the activity. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <uses-feature
         android:name="android.software.virtualization_framework"
         android:required="false" />
@@ -27,5 +32,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <service
+            android:name=".VmService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Runs a virtual machine whose display the app shows" />
+        </service>
     </application>
 </manifest>
