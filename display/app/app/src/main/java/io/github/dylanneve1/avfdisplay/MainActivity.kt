@@ -114,6 +114,7 @@ class MainActivity : Activity() {
             extraParams = i.getStringExtra("os_params") ?: "",
             disks = (i.getStringExtra("disks") ?: "").split(',').filter { it.isNotBlank() },
             matchHostCpus = i.getBooleanExtra("match_host_cpus", false),
+            cpuCount = i.getIntExtra("cpu_count", 0),
             tag = i.getStringExtra("tag") ?: "display",
         )
         val res = linkedMapOf<String, Any?>()
@@ -197,6 +198,9 @@ class MainActivity : Activity() {
             if (firstFrame == null && st[0] > 0) {
                 firstFrame = now - tRun
                 out("first published frame ${firstFrame} ms after run()")
+                // The guest's screen is the whole display from here on: the log overlay would
+                // cover it (and the console still goes to <tag>-console.txt).
+                if (!intent.getBooleanExtra("overlay", false)) runOnUiThread { status.visibility = View.GONE }
             }
             if (now - lastSave > 5000) {
                 lastSave = now
