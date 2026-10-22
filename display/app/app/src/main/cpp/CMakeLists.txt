@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.22)
+project(scfb C)
+add_library(scfb SHARED scfb_jni.c)
+target_compile_options(scfb PRIVATE -O2 -Wall -Wextra)
+target_link_libraries(scfb android log)

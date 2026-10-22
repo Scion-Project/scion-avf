@@ -1,68 +1,75 @@
 # Display and touch for a Scion AVF VM
 
-Status: **draft.** Sections marked **[src]** are read from AOSP
-`packages/modules/Virtualization` and `system/sepolicy` at `android17-release`
-(April 2026) and crosvm at the same branch. Sections marked **[pixel]** were
-measured on the Pixel 10 (`frankel`, Android 17, `DP11.260918.006`, user build).
-Anything else is a plan.
+**Status: works on the Pixel 10.** A Linux guest's framebuffer shows in a
+SurfaceView in our sideloaded app at the panel's 120 Hz, and touches reach
+the guest's evdev. Neither path uses crosvm's virtio-gpu display, which is
+closed to a sideloaded app on this build.
+
+Sources are marked like this:
+
+* **[src]**: AOSP `packages/modules/Virtualization` and `system/sepolicy` at
+  `android17-release` (April 2026), and crosvm at the same branch;
+* **[pixel]**: measured on the Pixel 10 (`frankel`, Android 17 / SDK 37,
+  `DP11.260918.006`, user build) with `display/run-on-device.sh`.
 
 ## 1. Short answer
 
-AVF ships three display/input mechanisms for custom VMs. A sideloaded app can
-use two of them:
-
-| Mechanism | What it is | Sideloaded app? |
+| Mechanism | What it is | Sideloaded app on the Pixel 10 |
 |---|---|---|
-| **virtio-input** (touch, keyboard, mouse, trackpad, switches) | `VirtualMachineCustomImageConfig.Builder.useTouch(true)` etc. The framework makes a socketpair per device, passes one end to crosvm (`--input multi-touch[path=/proc/self/fd/N,width,height]`) and writes `struct input_event`s into the other from `VirtualMachine.sendMultiTouchEvent(MotionEvent)` | **yes**, with a hidden-API exemption. The sockets stay inside the app → virtmgr → crosvm chain the AVF client policy already allows [src] |
-| **virtio-gpu + Android display backend** (`setDisplayConfig`, `setGpuConfig`) | crosvm gets `--gpu=...,displays=[[mode=windowed[w,h],dpi=[x,y],refresh-rate=r]]` and `--android-display-service=<vm name>`. crosvm registers an `ICrosvmAndroidDisplayService` binder with virtualizationservice, and the Terminal app fetches it (`IVirtualizationServiceInternal.waitDisplayService`) and hands it a `Surface` from its SurfaceView | **no** (SELinux). Only the `vmlauncher_app` domain (the Terminal priv-app) may look up `virtualization_service`, call `virtualizationservice`, and exchange binders with `crosvm_domain`. An `untrusted_app` is refused at the service lookup, and crosvm couldn't call back into the app's buffer queue either [src] |
-| **Guest RAM shared with the app** (`VirtualMachineRawConfig.customMemoryBackingFiles`, crosvm `--file-backed-mapping`) | An app-supplied fd is mapped into the guest's RAM at a chosen IPA. If the app maps the same fd, the guest's framebuffer is visible to the app with no copy and no device model | **likely yes**, see section 4. The Java API never fills the field, so the app has to add it to the parcel itself |
+| **Stock display**: `setDisplayConfig` (+ `setGpuConfig`) | crosvm gets `--gpu=...displays=[[mode=windowed[w,h],...]]` and `--android-display-service=<name>`, registers an `ICrosvmAndroidDisplayService` with virtualizationservice, and the Terminal app fetches it and hands it a `Surface` | **No, for two reasons.** (1) [pixel] This build's crosvm has no Android display backend: `crosvm: arg parsing failed: Unrecognized argument: --android-display-service`, so **a VM with a `DisplayConfig` doesn't start at all**. (2) [src, pixel] Even with it, SELinux lets only the Terminal priv-app (`vmlauncher_app`) look up `virtualizationservice` and exchange binders with crosvm. From our app's domain, `service check android.system.virtualizationservice` says `not found` |
+| **Stock touch**: `useTouch(true)` + `VirtualMachine.sendMultiTouchEvent` | the framework makes a socketpair, passes one end to crosvm as `--input multi-touch[path=...,width,height]`, and writes `input_event`s into the other | **Not as shipped.** The framework only attaches input devices when the config has a `DisplayConfig` (`createVirtualMachineConfigForRawFrom`), which kills the VM (above) |
+| **Touch, added to the raw config** | the same `InputDevice.MultiTouch` + socketpair, put into `VirtualMachineRawConfig.inputDevices` by the app | **Yes** [pixel]. crosvm creates a virtio-input multi-touch device; the guest sees `scion-touch`, `ABS_MT_POSITION_X 0..W`, `Y 0..H` |
+| **Shared-memory framebuffer** (SCFB): `VirtualMachineRawConfig.customMemoryBackingFiles` | an ashmem region of ours becomes a slice of guest RAM (`--file-backed-mapping ...,rw,ram`); the guest draws there, the app copies to its SurfaceView | **Yes** [pixel]. Zero copies in the guest→host direction, and one `memcpy` into the buffer queue |
 
-So the plan for Scion is:
+Both working paths need fields the Java API never fills
+(`customMemoryBackingFiles`, and `inputDevices` without a display). The app
+adds them by wrapping the `IVirtualizationService` binder that
+`VirtualMachine.run()` uses, so that `createVm()` sees a patched config
+(section 4). Everything else stays the stock Java path: console capture,
+callbacks, `stop()`. virtmgr passes both fields straight to crosvm.
 
-* **Touch**: virtio-input multi-touch, the stock way.
-* **Display**: a linear framebuffer in a region of guest RAM that the app also
-  maps (an ashmem region passed as a `CustomMemoryBackingFile`). The guest
-  writes pixels there and the app copies them into its SurfaceView. This is
-  the AVF equivalent of QEMU's `ramfb`, which is what HackiOS already uses.
-* virtio-gpu stays useful for a Linux guest and for a future where the display
-  service becomes reachable (a binder-RPC display service is a TODO in AOSP,
-  b/330257000), so the XNU side keeps virtio-gpu 2D as an optional path.
+So for Scion:
+
+* **Display = SCFB** ([display/SCFB.md](../display/SCFB.md)): the AVF
+  equivalent of the `ramfb` that HackiOS already draws into. The XNU side is
+  small: avfboot points boot_args' video at the region, and
+  MiniIOMobileFramebuffer publishes each frame (hackios-xnu-kernel,
+  `avf/display`).
+* **Touch = virtio-input multi-touch** added to the raw config, driven by the
+  app's own evdev writer (same wire format as the framework's).
+* virtio-gpu 2D stays an optional XNU path, for QEMU/crosvm hosts that do
+  scan out, and as the base the 3D work builds on. On this phone it can't
+  reach the screen.
 
 ## 2. What the custom-image config offers [src]
 
 All of these are `@hide` and need the hidden-API exemption (section 5).
 
 * `VirtualMachineCustomImageConfig.DisplayConfig.Builder`: `setWidth`,
-  `setHeight`, `setHorizontalDpi`, `setVerticalDpi`, `setRefreshRate`. All five
-  must be non-zero.
+  `setHeight`, `setHorizontalDpi`, `setVerticalDpi`, `setRefreshRate`.
+  virtmgr requires all five to be non-zero.
 * `GpuConfig.Builder`: `setBackend` (`2d`, `virglrenderer`, `gfxstream`),
-  `setContextTypes`, `setPciAddress`, `setRendererFeatures`, `setRendererUse{Egl,Gles,Glx,Surfaceless,Vulkan}`.
-  The Terminal app sets gfxstream + Vulkan when available, otherwise nothing.
-  Without a `GpuConfig`, a `DisplayConfig` alone still adds `--gpu` with the
-  default backend.
-* `Builder.useTouch/useKeyboard/useMouse/useTrackpad/useSwitches(boolean)`.
-* `AudioConfig` (`setUseSpeaker`, `setUseMicrophone`) → virtio-snd with the
-  `aaudio` backend. `UsbConfig` → xHCI controller.
-* `VirtualMachine` (running VM): `sendMultiTouchEvent(MotionEvent)` (queued and
-  written by a framework thread; x/y are multiplied by `setTouchScale`),
-  `sendKeyEvent(short evdevKeyCode, boolean down)`, `sendMouseEvent`,
-  `sendTrackpadEvent`, `sendLidEvent`, `sendTabletModeEvent`, plus
-  `addDisplay/removeDisplay/getDisplays` (hot-plug via crosvm's control socket,
-  new in 17).
-* virtmgr only honours GPU/display/input when it was built with
-  `RELEASE_AVF_SUPPORT_CUSTOM_VM_WITH_PARAVIRTUALIZED_DEVICES`; otherwise it
-  logs `... not supported. Ignoring` and drops them. The Pixel ships the
-  Terminal app's GUI, so it's expected on; the run confirms it.
+  `setContextTypes`, `setPciAddress`, `setRendererFeatures`,
+  `setRendererUse{Egl,Gles,Glx,Surfaceless,Vulkan}`. The Terminal app sets
+  gfxstream + Vulkan when it's enabled.
+* `Builder.useTouch/useKeyboard/useMouse/useTrackpad/useSwitches(boolean)`:
+  attached only together with a `DisplayConfig`.
+* `AudioConfig` (`setUseSpeaker`, `setUseMicrophone`): virtio-snd with the
+  `aaudio` backend. `UsbConfig`: xHCI.
+* `VirtualMachine`: `sendMultiTouchEvent(MotionEvent)` (queued; x/y multiplied
+  by `setTouchScale`), `sendKeyEvent(short evdevCode, boolean down)`,
+  `sendMouseEvent`, `sendTrackpadEvent`, `sendLidEvent`, `sendTabletModeEvent`,
+  and new in 17, `addDisplay/removeDisplay/getDisplays` (display hot-plug over
+  crosvm's control socket).
+* virtmgr honours GPU, display and input only when it was built with
+  `RELEASE_AVF_SUPPORT_CUSTOM_VM_WITH_PARAVIRTUALIZED_DEVICES`. On the Pixel
+  it was [pixel]: virtmgr passed `--gpu`, `--input` and
+  `--android-display-service` on to crosvm. It's crosvm that lacks the display
+  backend.
 
-The multi-touch device crosvm creates reports `ABS_MT_SLOT`,
-`ABS_MT_TRACKING_ID`, `ABS_MT_POSITION_X/Y`, `ABS_X/Y` and `BTN_TOUCH`, with the
-range set by the `width`/`height` the framework passes (the display size when
-there is a display, otherwise the default).
+## 3. Why the stock display path is closed [src, pixel]
 
-## 3. Why the stock display path is closed to a sideloaded app [src]
-
-From `system/sepolicy` (android17-release), all inside
-`is_flag_enabled(RELEASE_AVF_SUPPORT_CUSTOM_VM_WITH_PARAVIRTUALIZED_DEVICES)`:
+From `system/sepolicy`, inside `is_flag_enabled(RELEASE_AVF_SUPPORT_CUSTOM_VM_WITH_PARAVIRTUALIZED_DEVICES)`:
 
 ```
 # private/vmlauncher_app.te
@@ -73,72 +80,122 @@ allow vmlauncher_app crosvm_domain:binder { call transfer };
 allow crosvm_domain vmlauncher_app:binder { transfer call };
 ```
 
-`untrusted_app_all` gets only `virtualizationservice_use(untrusted_app_all)`,
-which covers the client ↔ virtmgr ↔ crosvm sockets, fds and pipes, not these
-binder edges. So for our app:
+`untrusted_app_all` has only `virtualizationservice_use(untrusted_app_all)`,
+which covers the sockets, fds and pipes between client, virtmgr and crosvm, not
+these binder edges. So a sideloaded app:
 
-1. `ServiceManager.getService("android.system.virtualizationservice")` is denied
-   (`avc: denied { find }`), so `waitDisplayService()` can't be reached;
-2. even with the display-service binder, `setSurface()` is an
-   `untrusted_app → crosvm_domain` binder call, which is not allowed;
-3. crosvm then queues buffers into the app's `BLASTBufferQueue`, a
-   `crosvm_domain → untrusted_app` binder call, which is not allowed either.
+1. can't find `android.system.virtualizationservice` [pixel: `run-as <pkg>
+   service check` says `not found`, and `ServiceManager.checkService` returns
+   null in the app], so `waitDisplayService()` is out of reach;
+2. couldn't call `setSurface()` on crosvm (`untrusted_app → crosvm_domain`
+   binder call);
+3. couldn't receive crosvm's buffers in its `BLASTBufferQueue`
+   (`crosvm_domain → untrusted_app`).
 
-None of this is a hidden-API matter, so no exemption helps. The guest still
-gets its virtio-gpu device, but its scanout goes nowhere.
+On top of that, this build's crosvm rejects `--android-display-service`
+[pixel], so even the Terminal app's GUI path isn't there in this crosvm. No
+hidden-API exemption changes any of this.
 
-## 4. Shared-memory framebuffer [src, pending pixel]
+## 4. Shared memory and the createVm hook
 
-`VirtualMachineRawConfig.customMemoryBackingFiles` is a list of
-`{ParcelFileDescriptor file, long rangeStart, long size}`. virtmgr passes each
-one straight to crosvm as
-`--file-backed-mapping /proc/self/fd/N,addr=..,size=..,rw,ram` (no validation
-in virtmgr). crosvm dups the fd (`open_file_or_duplicate`), mmaps it
-`MAP_SHARED`, and uses it as the backing of that slice of guest RAM. The range
-must sit inside a RAM region (`0x8000_0000` + guest memory size).
+[src] `CustomMemoryBackingFile {ParcelFileDescriptor file; long rangeStart;
+long size}` becomes `--file-backed-mapping /proc/self/fd/N,addr=..,size=..,rw,ram`.
+crosvm dups the fd (`open_file_or_duplicate`), maps it `MAP_SHARED` and backs
+that part of guest RAM with it. The range must lie inside guest RAM.
 
-SELinux for each hop:
+SELinux: crosvm may `map` an **ashmem** fd (every domain may, `domain.te`),
+but not an app's memfd (only its own) or an `app_data_file` (no `map`).
+[pixel] `SharedMemory.create()` returns ashmem on this phone
+(`/dev/ashmem<boot-id>`; `sys.use_memfd` is unset). The app also has a
+fallback that opens the libcutils ashmem device itself, allowed while it
+targets SDK ≤ 36.
 
-* app → virtmgr → crosvm fd passing: `virtualizationservice_use` grants
-  `fd use` on the client domain;
-* crosvm `mmap`: crosvm may `map` an fd on `ashmem_device` /
-  `ashmem_libcutils_device` (every domain may, `private/domain.te`). It may
-  **not** map an app's `memfd_file` (only `self`), or an `app_data_file`
-  (read/write/getattr only). So the region has to be **ashmem**, not memfd.
-  On this phone `sys.use_memfd` is unset and `/dev/ashmem<boot-id>` exists, so
-  `SharedMemory.create()` should still hand out ashmem; the probe checks by
-  reading `/proc/self/fd/N`.
+The hook (`display/app/.../DisplayVm.kt`):
 
-The Java framework always sends an empty list, so the app adds the entry
-itself: `VirtualMachine.run()` gets its `IVirtualizationService` from the
-`VirtualizationService` singleton, and the app wraps that binder in a proxy
-that appends the backing file to the raw config in `createVm`. Everything else
-(console, callbacks, input sockets) stays the stock Java path.
+1. `VirtualizationService.getInstance()` (package-private): the singleton
+   `VirtualMachine.run()` will use. The app keeps a strong reference so it
+   stays the same instance.
+2. Replace its `mBinder` with a `java.lang.reflect.Proxy` over
+   `IVirtualizationService` that forwards every call. In `createVm`, it appends
+   the `CustomMemoryBackingFile` and an `InputDevice.MultiTouch` (our
+   socketpair, width/height = framebuffer size, name `scion-touch`) to
+   `getRawConfig()`.
+3. virtmgr's crosvm command line [pixel]:
+   `--input multi-touch[path=/proc/self/fd/35,width=1080,height=2424,name=scion-touch]
+   --file-backed-mapping /proc/self/fd/36 (/dev/ashmem...),addr=0x9dc00000,size=0x2000000,rw,ram`.
 
-Guest side, the region is outside the guest kernel's memory map (`mem=` for
-Linux, the loader's memory map for XNU) and the guest draws into it as a
-linear XRGB8888 framebuffer. For a doorbell, the guest can poll-free signal a
-frame over virtio-vsock, or the app can sample at the display refresh rate
-(a frame counter in a header word tells it whether anything changed).
+This depends on framework internals (a private field and a package-private
+method) that may change between releases. The app reports which step failed
+if they do.
 
-## 5. Hidden-API exemption
+## 5. Grants and hidden-API exemption
 
-`hidden_api_blacklist_exemptions` takes comma-separated member-signature
-prefixes. On top of spike 1's two prefixes, display/touch needs:
+Grants are unchanged from spike 1: `pm grant` **MANAGE_VIRTUAL_MACHINE** and
+**USE_CUSTOM_VIRTUAL_MACHINE**.
+
+`hidden_api_blacklist_exemptions` (comma-separated signature prefixes; set by
+`display/run-on-device.sh` and restored on exit):
 
 | Prefix | For |
 |---|---|
-| `Landroid/system/virtualmachine/VirtualMachineCustomImageConfig` | whole class tree: `Builder` (incl. `setDisplayConfig`, `setGpuConfig`, `useTouch`, ...), `DisplayConfig$Builder`, `GpuConfig$Builder` |
+| `Landroid/system/virtualmachine/VirtualMachineCustomImageConfig` | the custom-image `Builder`, and `DisplayConfig`/`GpuConfig` builders for the stock-display experiment |
 | `Landroid/system/virtualmachine/VirtualMachineConfig$Builder;->setCustomImageConfig(` | as in spike 1 |
-| `Landroid/system/virtualmachine/VirtualMachine;->send` | `sendMultiTouchEvent`, `sendKeyEvent`, ... |
-| `Landroid/system/virtualmachine/VirtualMachine;->setTouchScale(` | touch scaling |
-| `Landroid/system/virtualmachine/VirtualizationService;` and `Landroid/system/virtualmachine/VirtualMachine;->mVirtualizationService` | shared-memory hook (section 4) |
-| `Landroid/system/virtualizationservice/` | the AIDL parcelables (`VirtualMachineConfig`, `VirtualMachineRawConfig`, `CustomMemoryBackingFile`) and `IVirtualizationService` for the hook |
+| `Landroid/system/virtualmachine/VirtualMachine;->send` and `...;->setTouchScale(` | stock touch (only with `--stock-display`) |
+| `Landroid/system/virtualmachine/VirtualizationService;` | the hook: `getInstance()`, `mBinder` |
+| `Landroid/system/virtualizationservice/` | `IVirtualizationService` (proxied), `VirtualMachineConfig.getRawConfig`, `VirtualMachineRawConfig`, `CustomMemoryBackingFile`, `InputDevice` |
+| `Landroid/os/ServiceManager;->checkService(` | only the stock-display reachability check |
 
-The final list is in `display/run-on-device.sh`; it is reverted on exit.
-Grants are unchanged from spike 1: `MANAGE_VIRTUAL_MACHINE` and
-`USE_CUSTOM_VIRTUAL_MACHINE`.
+[pixel] With this list, no `hiddenapi` denials were logged.
 
-## 6. Pixel results
+## 6. Pixel 10 results [pixel]
 
-Pending: the display test app (`display/`) is being built.
+`display/run-on-device.sh` (default options): 1080×2424 guest framebuffer
+(the full panel), XB24, 512 MiB guest, 1 vCPU, Debian 6.12 cloud kernel plus
+`virtio_input` and `evdev` modules, and our freestanding `scfb-init`.
+
+| | full res 1080×2424 | half res 540×1212 |
+|---|---|---|
+| guest RAM shared with the app | yes: the guest saw the app's pre-boot stamp (`host_pre=1`) | yes |
+| first frame on screen after `run()` | 0.74 s (kernel boot included) | 0.80 s |
+| guest full-frame redraw, back to back for 5 s | 162 fps (1.7 GB/s into the region) | 275 fps |
+| frames the app presented in that window | 120 fps (the panel's refresh rate caps the buffer queue) | 120 fps |
+| app copy per frame (`memcpy` into `ANativeWindow`) | 1.39 ms avg, 2.8 ms max | 0.37 ms |
+| steady demo (guest redraws at ~60 Hz) | 59 fps, every frame presented (`host_seq` = `frame_seq` - 1) | |
+| scripted touch: reports sent / reached guest evdev | 400 / 400, coordinates exact | 400 / 400 |
+| scripted touch → frame showing it, posted to SurfaceFlinger: p50 / p90 / p99 | 15.6 / 20.5 / 27.2 ms | 9.2 / 12.2 / 18.1 ms |
+| real touches (`adb shell input swipe`, through InputDispatcher → app → guest) → posted: p50 / p90 | 10.6 / 16.0 ms (188 reports) | 6.9 / 9.2 ms |
+| BGRX (`XR24`, iOS's layout) | BGRA_8888 buffer queue accepted, plain `memcpy`, colours right | |
+
+The latency figures run from the app handing the report to the socket, until
+the app posted the guest's frame drawn after the guest had read that report
+(the guest echoes its report count in the frame header). They include the
+guest redrawing the full frame. That redraw is slow, at ~6 ms for 10 MB:
+`/dev/mem` maps the region as Device memory for Linux, and the test renderer
+is plain C. XNU draws through a write-combined mapping. What's left is the
+transport, about 1.5 ms of copy and ~1 ms of polling. Display composition
+after posting adds one or two refreshes, which these figures don't include.
+
+The guest's test pattern in the app, BGRX run (crop):
+
+![SCFB test pattern on the Pixel 10](display/pixel10-scfb-testpattern.png)
+
+Other observations:
+
+* `--stock-display` (DisplayConfig + useTouch): `run()` succeeds, then crosvm
+  exits with `Unrecognized argument: --android-display-service`
+  (`stop_reason` 2).
+* No SELinux denials involving crosvm or the ashmem mapping. The only `avc`
+  lines are virtmgr's cgroup reads, which happen on every run.
+* An unaligned store into the region kills a Linux guest (SIGBUS: Device
+  memory). Build guest code with `-mstrict-align`.
+
+## 7. Files
+
+* `display/SCFB.md`: the shared-framebuffer layout and protocol (used by the
+  XNU side too).
+* `display/app/`: the test app (Kotlin + a small JNI presenter).
+* `display/guest/`: `build.sh` (pinned Debian cloud kernel, `virtio_input` +
+  `evdev` modules, `scfb-init`) and `init.c`.
+* `display/run-on-device.sh`: lock, install, grants, exemption, guest
+  streamed in with `run-as`, one run, screenshot, `input swipe`, results,
+  revert.
