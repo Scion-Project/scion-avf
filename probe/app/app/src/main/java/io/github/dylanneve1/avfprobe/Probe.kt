@@ -355,21 +355,32 @@ class Probe(
 
     private fun locateGuest(): Pair<File, File>? {
         section("gate 4: guest files")
-        // adb can write the app's external files dir; crosvm needs files the
-        // app owns, so copy them into internal storage (app_data_file).
+        // crosvm gets fds the app opens, from files the app owns (app_data_file):
+        // internal storage. tools/avf-lib.sh (avf_push) streams guest files
+        // straight there with run-as. The external files dir is only a fallback,
+        // copied in if the app can read it: files adb pushes into a folder adb
+        // created belong to shell, and the app can't (#6).
         val src = File(outDir, opts.guestDir)
         val dst = File(ctx.filesDir, opts.guestDir).apply { mkdirs() }
         val pairs = listOf(opts.kernelFile, opts.initrdFile).map { File(src, it) to File(dst, it) }
         for ((s, d) in pairs) {
-            if (s.isFile && (!d.isFile || d.length() != s.length() || d.lastModified() < s.lastModified())) {
-                s.copyTo(d, overwrite = true)
+            if (!s.exists()) continue
+            if (!s.canRead()) {
+                out("note: ${s.path} exists but the app can't read it (owned by shell?); ignored")
+                continue
+            }
+            if (!d.isFile || d.length() != s.length() || d.lastModified() < s.lastModified()) {
+                runCatching { s.copyTo(d, overwrite = true) }
+                    .onSuccess { out("copied ${s.path} -> ${d.path}") }
+                    .onFailure { out("note: copying ${s.path} failed: ${describe(it)}") }
             }
         }
         val (k, i) = pairs.map { it.second }
         out("kernel: ${k.path} ${if (k.isFile) "${k.length()} bytes" else "MISSING"}")
         out("initrd: ${i.path} ${if (i.isFile) "${i.length()} bytes" else "MISSING"}")
         if (!k.isFile || !i.isFile) {
-            fail("GUEST_FILES_MISSING", "push ${opts.kernelFile} and ${opts.initrdFile} to ${src.path}/")
+            fail("GUEST_FILES_MISSING", "copy ${opts.kernelFile} and ${opts.initrdFile} to ${dst.path}/ " +
+                "with run-as (tools/avf-lib.sh avf_push does this)")
             return null
         }
         return k to i
