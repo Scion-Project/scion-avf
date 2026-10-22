@@ -145,8 +145,13 @@ adb shell pm grant $PKG android.permission.USE_CUSTOM_VIRTUAL_MACHINE
 adb shell settings put global hidden_api_blacklist_exemptions \
   "'Landroid/system/virtualmachine/VirtualMachineCustomImageConfig\$Builder;,Landroid/system/virtualmachine/VirtualMachineConfig\$Builder;->setCustomImageConfig('"
 
-adb shell mkdir -p $DATA/guest
-adb push probe/guest/out/Image probe/guest/out/initrd.img $DATA/guest/
+# Into the app's internal storage, as the app's user. Don't adb push into $DATA:
+# files in a folder adb created are owned by shell, and the app can't read them.
+adb shell run-as $PKG mkdir -p files/guest
+adb push probe/guest/out/Image probe/guest/out/initrd.img /data/local/tmp/
+adb shell "cat /data/local/tmp/Image | run-as $PKG sh -c 'cat > files/guest/Image'"
+adb shell "cat /data/local/tmp/initrd.img | run-as $PKG sh -c 'cat > files/guest/initrd.img'"
+adb shell rm /data/local/tmp/Image /data/local/tmp/initrd.img
 adb shell am force-stop $PKG
 adb logcat -c
 adb shell am start -W -n $PKG/.MainActivity --ez autorun true
