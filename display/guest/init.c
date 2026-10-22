@@ -17,6 +17,8 @@
 //   scfb.mode=demo   (default) redraw on input and at ~60 Hz
 //   scfb.mode=bench  redraw full frames back to back for scfb.bench=N s, then demo
 //   scfb.secs=N      power off after N s (0 = run until the host stops the VM)
+//   scfb.bufs=0|1|2  1: draw in place with the "drawing" seqlock (as XNU does); 2 (default): flip;
+//                    0: in place with no seqlock (ramfb-like, to measure tearing)
 //
 // Console lines the host parses: "SCFB key=value ...", "TOUCH ...",
 // "INPUTDEV ...", "VIRTIO ...", and "=== SCFB DONE ===".
@@ -182,7 +184,8 @@ struct scfb_hdr {
     u32 stride, format;          // 0x10  bytes per row, DRM fourcc
     u32 buf_offset[2];           // 0x18  from region start
     u32 nbufs, flags;            // 0x20  flags bit0: guest ready
-    u32 front, pad0;             // 0x28  index of the newest complete buffer
+    u32 front;                   // 0x28  index of the newest complete buffer
+    volatile u32 drawing;        // 0x2c  single buffer: 1 while the guest draws (seqlock with host_reading)
     volatile u64 frame_seq;      // 0x30  guest: frames published (front holds frame_seq)
     volatile u64 input_seq;      // 0x38  guest: input reports consumed when the frame was drawn
     volatile u64 guest_ns;       // 0x40  guest CLOCK_MONOTONIC at publish
@@ -390,7 +393,42 @@ static void render(u32 *fb, u64 n, int full_bench) {
     }
 }
 
+static int nbufs = 2;
+static inline void dsb(void) { __asm__ volatile("dsb ish" ::: "memory"); }
+
+// One buffer, drawn in place (what XNU does): don't start while the host is
+// copying, and say so while drawing, so the host never shows a half-drawn frame.
+static int no_seqlock;  // scfb.bufs=0: in place without the seqlock, like ramfb (to see tearing)
+static void publish_inplace(int full_bench) {
+    u64 t0 = now_ns();
+    for (; !no_seqlock;) {
+        while (H->host_reading && now_ns() - t0 < 4000000ul) {
+        }
+        H->drawing = 1;
+        dsb();
+        if (!H->host_reading || now_ns() - t0 >= 4000000ul) break;
+        H->drawing = 0;  // both looked at once: let the host finish
+        dsb();
+    }
+    frames++;
+    render(buf_px(0), frames, full_bench);
+    H->dirty[0] = 0;
+    H->dirty[1] = 0;
+    H->dirty[2] = W;
+    H->dirty[3] = HT;
+    H->input_seq = input_seq;
+    H->guest_ns = now_ns();
+    dsb();
+    if (!no_seqlock) H->drawing = 0;
+    H->frame_seq = frames;
+    dsb();
+}
+
 static void publish(int full_bench) {
+    if (nbufs == 1) {
+        publish_inplace(full_bench);
+        return;
+    }
     u32 back = H->front ^ 1;
     // Don't overwrite the buffer the host is still copying (it holds frame
     // frame_seq - 1). Give up after 50 ms so a host that never reads can't
@@ -501,6 +539,9 @@ int cmain(void) {
     HT = (u32)arg(cmdline, "scfb.h=", 2400);
     u64 secs = arg(cmdline, "scfb.secs=", 0);
     u64 bench = arg(cmdline, "scfb.bench=", 0);
+    u64 bufs_arg = arg(cmdline, "scfb.bufs=", 2);
+    nbufs = bufs_arg <= 1 ? 1 : 2;
+    no_seqlock = bufs_arg == 0;
     for (const char *c = cmdline; *c; c++)
         if (starts(c, "scfb.fmt=xr24")) bgrx = 1;
 
@@ -549,8 +590,9 @@ int cmain(void) {
             H->stride = STRIDE;
             H->format = bgrx ? FOURCC_XR24 : FOURCC_XB24;
             H->buf_offset[0] = 0x10000;
-            H->buf_offset[1] = (u32)(0x10000 + bufsz);
-            H->nbufs = 2;
+            H->buf_offset[1] = nbufs == 2 ? (u32)(0x10000 + bufsz) : 0x10000;
+            H->nbufs = (u32)nbufs;
+            H->drawing = 0;
             H->front = 0;
             H->frame_seq = 0;
             dmb();
