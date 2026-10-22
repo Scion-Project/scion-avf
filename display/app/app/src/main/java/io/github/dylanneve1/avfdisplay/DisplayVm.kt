@@ -54,6 +54,12 @@ class DisplayVm(private val ctx: Context, private val opts: Options, private val
         val shm: String = "auto",     // auto | sharedmemory | ashmem
         val format: String = "xb24",  // guest pixel layout: xb24 (RGBX) | xr24 (BGRX)
         val bufs: Int = 2,            // 2: guest flips a pair; 1: draws in place under the seqlock (like XNU)
+        // Any other OS (HackiOS's XNU via avfboot): no Linux test-guest params, just the scfb.* ones
+        // plus extraParams, the given disk images (read-only virtio-blk, in order), and cpus.
+        val osMode: Boolean = false,
+        val extraParams: String = "",
+        val disks: List<String> = emptyList(),
+        val matchHostCpus: Boolean = false,
         val tag: String = "display",
     )
 
@@ -79,6 +85,7 @@ class DisplayVm(private val ctx: Context, private val opts: Options, private val
     private var ownTouchSock: ParcelFileDescriptor? = null
     @Volatile var inputSeq = 0L; private set
     @Volatile var touchScale = 1f
+    @Volatile var touchScaleY = 1f
     val result = linkedMapOf<String, Any?>()
     val console = StringBuffer()
     @Volatile var consoleListener: ((String) -> Unit)? = null
@@ -216,6 +223,11 @@ class DisplayVm(private val ctx: Context, private val opts: Options, private val
     // ---- 4. build + run -------------------------------------------------------
 
     fun params(): String {
+        if (opts.osMode) {
+            // A leading "-" (e.g. "-v") must not come first: crosvm takes it for an option.
+            return "scfb.addr=0x${regionAddr.toString(16)} scfb.size=0x${regionSize.toString(16)} " +
+                "scfb.w=${opts.width} scfb.h=${opts.height} ${opts.extraParams}".trim()
+        }
         val memParam = opts.memMib - TOP_GAP_MIB - REGION_MIB
         return "console=hvc0 earlycon=uart8250,mmio,0x3f8 panic=-1 rdinit=/init mem=${memParam}M " +
             "scfb.addr=0x${regionAddr.toString(16)} scfb.size=0x${regionSize.toString(16)} " +
@@ -229,6 +241,14 @@ class DisplayVm(private val ctx: Context, private val opts: Options, private val
         call(img, "setKernelPath", kernel.path)
         call(img, "setInitrdPath", initrd.path)
         params().split(' ').filter { it.isNotBlank() }.forEach { call(img, "addParam", it) }
+        if (opts.disks.isNotEmpty()) {
+            val diskCls = cls("$P.VirtualMachineCustomImageConfig\$Disk")
+            for (d in opts.disks) {
+                val f = File(kernel.parentFile, d)
+                call(img, "addDisk", diskCls.getMethod("RODisk", String::class.java).invoke(null, f.path))
+                log("disk: ${f.path} (${f.length() shr 20} MiB, read-only)")
+            }
+        }
         if (opts.stockDisplay) {
             val db = cls("$P.VirtualMachineCustomImageConfig\$DisplayConfig\$Builder").getConstructor().newInstance()
             call(db, "setWidth", opts.width); call(db, "setHeight", opts.height)
@@ -248,7 +268,7 @@ class DisplayVm(private val ctx: Context, private val opts: Options, private val
         call(cb, "setCustomImageConfig", imgCfg)
         call(cb, "setProtectedVm", false)
         call(cb, "setMemoryBytes", opts.memMib * 1024 * 1024)
-        call(cb, "setCpuTopology", 0)
+        call(cb, "setCpuTopology", if (opts.matchHostCpus) 1 else 0)
         call(cb, "setDebugLevel", 1)
         call(cb, "setVmOutputCaptured", true)
         val config = call(cb, "build")!!
@@ -309,8 +329,9 @@ class DisplayVm(private val ctx: Context, private val opts: Options, private val
 
     // ---- 5. touch -------------------------------------------------------------
 
-    fun setScale(scale: Float) {
+    fun setScale(scale: Float, scaleY: Float = scale) {
         touchScale = scale
+        touchScaleY = scaleY
         vm?.let { v -> runCatching { call(v, "setTouchScale", scale) } }
     }
 
@@ -340,14 +361,14 @@ class DisplayVm(private val ctx: Context, private val opts: Options, private val
         when (ev.actionMasked) {
             MotionEvent.ACTION_MOVE -> for (i in 0 until ev.pointerCount) {
                 val id = ev.getPointerId(i)
-                val x = (ev.getX(i) * touchScale).toInt(); val y = (ev.getY(i) * touchScale).toInt()
+                val x = (ev.getX(i) * touchScale).toInt(); val y = (ev.getY(i) * touchScaleY).toInt()
                 e(3, 0x2f, id); e(3, 0x39, id); e(3, 0x35, x); e(3, 0x36, y); e(3, 0, x); e(3, 1, y)
             }
             else -> {
                 val down = ev.actionMasked == MotionEvent.ACTION_DOWN || ev.actionMasked == MotionEvent.ACTION_POINTER_DOWN
                 val i = ev.actionIndex
                 val id = ev.getPointerId(i)
-                val x = (ev.getX(i) * touchScale).toInt(); val y = (ev.getY(i) * touchScale).toInt()
+                val x = (ev.getX(i) * touchScale).toInt(); val y = (ev.getY(i) * touchScaleY).toInt()
                 e(1, 0x14a, if (down) 1 else 0); e(3, 0x2f, id); e(3, 0x39, if (down) id else -1)
                 e(3, 0x35, x); e(3, 0x36, y); e(3, 0, x); e(3, 1, y)
             }
