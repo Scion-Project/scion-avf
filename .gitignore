@@ -8,3 +8,6 @@ probe/app/local.properties
 *.iml
 .DS_Store
 probe/results/
+bench/out/
+bench/results/
+results/

@@ -3,7 +3,12 @@ package io.github.dylanneve1.avfprobe
 
 import android.content.Context
 import android.content.pm.PackageManager
+import android.app.ActivityManager
 import android.os.Build
+import android.system.Os
+import android.system.OsConstants
+import org.json.JSONArray
+import org.json.JSONObject
 import android.util.Log
 import java.io.File
 import java.io.InputStream
@@ -47,13 +52,20 @@ class Probe(
         val matchHostCpus: Boolean = false,
         val timeoutSec: Long = 60,
         val params: String = DEFAULT_PARAMS,
+        /** Subdirectory of the app's external files dir holding kernel + initrd. */
+        val guestDir: String = "guest",
+        val kernelFile: String = "Image",
+        val initrdFile: String = "initrd.img",
+        /** Prefix for the output files (report/console/vmlog/result.json); "" = none. */
+        val tag: String = "",
     )
 
     companion object {
         const val TAG = "AvfProbe"
         const val FEATURE = "android.software.virtualization_framework"
-        const val VM_NAME = "avfprobe"
-        const val DONE_MARKER = "=== AVFPROBE DONE ==="
+        const val VM_NAME = "avfprobe"   // the VM instance name; always deleted before create()
+        // The probe guest ends with AVFPROBE DONE, the benchmark guest with AVFBENCH DONE.
+        val DONE_RE = Regex("=== AVF(PROBE|BENCH) DONE ===")
 
         // hvc0 is a virtio-console wired to the same console fd as ttyS0 (see
         // virtmgr's crosvm.rs); earlycon catches anything before virtio is up.
@@ -65,6 +77,16 @@ class Probe(
         const val PERM_CUSTOM = "android.permission.USE_CUSTOM_VIRTUAL_MACHINE"
         const val PERM_DEBUG = "android.permission.DEBUG_VIRTUAL_MACHINE"
     }
+
+    private fun outFile(name: String) = File(outDir, if (opts.tag.isEmpty()) name else "${opts.tag}-$name")
+
+    // Facts collected for result.json (the machine-readable twin of the report).
+    private val timings = JSONObject()
+    private val facts = JSONObject()
+    private var guestKv = JSONObject()
+    private var stopReasonOut: String? = null
+    private var errorOut: String? = null
+    private var capsOut = -1
 
     private val report = StringBuilder()
     private var verdict: String? = null
@@ -110,8 +132,48 @@ class Probe(
         out("VERDICT: ${verdict ?: if (opts.boot) "OK" else "CHECKS_OK_BOOT_SKIPPED"}" +
             if (verdictDetail.isNotEmpty()) " ($verdictDetail)" else "")
         val text = report.toString()
-        runCatching { File(outDir, "report.txt").writeText(text) }
+        runCatching { outFile("report.txt").writeText(text) }
+        // result.json is written last (atomically): host scripts wait for it.
+        runCatching {
+            val tmp = outFile("result.json.tmp")
+            tmp.writeText(resultJson().toString(2))
+            tmp.renameTo(outFile("result.json"))
+        }.onFailure { Log.e(TAG, "result.json", it) }
         return text
+    }
+
+    private fun resultJson(): JSONObject = JSONObject().apply {
+        put("schema", 1)
+        put("tool", "avfprobe")
+        put("tag", opts.tag)
+        put("time", java.time.OffsetDateTime.now().toString())
+        put("verdict", verdict ?: if (opts.boot) "OK" else "CHECKS_OK_BOOT_SKIPPED")
+        put("detail", verdictDetail)
+        put("options", JSONObject().apply {
+            put("boot", opts.boot); put("protected", opts.protectedVm); put("mem_mib", opts.memMib)
+            put("match_host_cpus", opts.matchHostCpus); put("timeout_s", opts.timeoutSec)
+            put("params", opts.params); put("guest_dir", opts.guestDir)
+            put("kernel", opts.kernelFile); put("initrd", opts.initrdFile)
+        })
+        put("host", facts)
+        put("capabilities", capsOut)
+        put("timings_ms", timings)
+        put("stop_reason", stopReasonOut ?: JSONObject.NULL)
+        put("vm_error", errorOut ?: JSONObject.NULL)
+        put("guest", guestKv)
+    }
+
+    /** Lifts "AVFKV key=value" lines (one pair per line) from the guest console. */
+    private fun parseGuestKv(console: String): JSONObject {
+        val o = JSONObject()
+        for (line in console.lineSequence()) {
+            val l = line.trim()
+            if (!l.startsWith("AVFKV ")) continue
+            val body = l.removePrefix("AVFKV ")
+            val k = body.substringBefore('=', "")
+            if (k.isNotEmpty()) o.put(k, body.substringAfter('=').trim())
+        }
+        return o
     }
 
     // ---- gate 0: what are we running on ------------------------------------
@@ -125,13 +187,34 @@ class Probe(
         out("build: ${Build.FINGERPRINT} type=${Build.TYPE}")
         out("abis: ${Build.SUPPORTED_ABIS.joinToString()}")
         out("/dev/kvm visible to app: ${File("/dev/kvm").exists()}")
+        val hostPage = runCatching { Os.sysconf(OsConstants._SC_PAGESIZE) }.getOrDefault(-1L)
+        val memInfo = ActivityManager.MemoryInfo().also {
+            (ctx.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(it)
+        }
+        out("host page size: $hostPage; host CPUs: ${Runtime.getRuntime().availableProcessors()}; " +
+            "host RAM: ${memInfo.totalMem / (1024 * 1024)} MiB; kernel: ${System.getProperty("os.version")}")
+        facts.put("model", "${Build.MANUFACTURER} ${Build.MODEL}")
+        facts.put("device", Build.DEVICE)
+        facts.put("soc", "${Build.SOC_MANUFACTURER} ${Build.SOC_MODEL}")
+        facts.put("android", Build.VERSION.RELEASE)
+        facts.put("sdk", Build.VERSION.SDK_INT)
+        facts.put("security_patch", Build.VERSION.SECURITY_PATCH)
+        facts.put("fingerprint", Build.FINGERPRINT)
+        facts.put("page_size", hostPage)
+        facts.put("cpus", Runtime.getRuntime().availableProcessors())
+        facts.put("ram_mib", memInfo.totalMem / (1024 * 1024))
+        facts.put("kernel", System.getProperty("os.version") ?: "")
+        facts.put("dev_kvm_visible", File("/dev/kvm").exists())
         val props = getprop()
         for (k in listOf(
             "hypervisor.vm.supported", "hypervisor.protected_vm.supported",
             "hypervisor.version", "hypervisor.memory_reclaim.supported",
             "ro.boot.hypervisor.vm.supported", "ro.boot.hypervisor.protected_vm.supported",
             "ro.boot.hypervisor.version", "ro.boot.hypervisor.pvmfw.path",
-        )) out("prop $k = ${props[k] ?: "(unset or unreadable)"}")
+        )) {
+            out("prop $k = ${props[k] ?: "(unset or unreadable)"}")
+            facts.put("prop.$k", props[k] ?: JSONObject.NULL)
+        }
     }
 
     private fun getprop(): Map<String, String> = runCatching {
@@ -148,6 +231,7 @@ class Probe(
         section("gate 1: system feature")
         val has = ctx.packageManager.hasSystemFeature(FEATURE)
         out("$FEATURE: $has")
+        facts.put("virtualization_framework", has)
         if (!has) {
             fail("FEATURE_MISSING", "$FEATURE not declared; getSystemService(VirtualMachineManager) returns null")
         }
@@ -273,9 +357,9 @@ class Probe(
         section("gate 4: guest files")
         // adb can write the app's external files dir; crosvm needs files the
         // app owns, so copy them into internal storage (app_data_file).
-        val src = File(outDir, "guest")
-        val dst = File(ctx.filesDir, "guest").apply { mkdirs() }
-        val pairs = listOf("Image", "initrd.img").map { File(src, it) to File(dst, it) }
+        val src = File(outDir, opts.guestDir)
+        val dst = File(ctx.filesDir, opts.guestDir).apply { mkdirs() }
+        val pairs = listOf(opts.kernelFile, opts.initrdFile).map { File(src, it) to File(dst, it) }
         for ((s, d) in pairs) {
             if (s.isFile && (!d.isFile || d.length() != s.length() || d.lastModified() < s.lastModified())) {
                 s.copyTo(d, overwrite = true)
@@ -285,7 +369,7 @@ class Probe(
         out("kernel: ${k.path} ${if (k.isFile) "${k.length()} bytes" else "MISSING"}")
         out("initrd: ${i.path} ${if (i.isFile) "${i.length()} bytes" else "MISSING"}")
         if (!k.isFile || !i.isFile) {
-            fail("GUEST_FILES_MISSING", "push probe/guest/out/{Image,initrd.img} to ${src.path}/")
+            fail("GUEST_FILES_MISSING", "push ${opts.kernelFile} and ${opts.initrdFile} to ${src.path}/")
             return null
         }
         return k to i
@@ -348,6 +432,7 @@ class Probe(
             return
         }
         val caps = vmmCls.getMethod("getCapabilities").invoke(vmm) as Int
+        capsOut = caps
         out("capabilities: 0x${caps.toString(16)} " +
             "(protected=${caps and 1 != 0}, non-protected=${caps and 2 != 0})")
         val needed = if (opts.protectedVm) 1 else 2
@@ -371,6 +456,7 @@ class Probe(
             }
         }.onFailure { out("note: cleanup of old instance failed: ${describe(it)}") }
 
+        val tCreate = System.nanoTime()
         val vm = try {
             vmmCls.getMethod("create", String::class.java, apiCls("VirtualMachineConfig"))
                 .invoke(vmm, VM_NAME, config)
@@ -378,6 +464,7 @@ class Probe(
             fail("CONFIG_REJECTED", "VirtualMachineManager.create: ${describe(t)}")
             return
         }
+        timings.put("create", (System.nanoTime() - tCreate) / 1_000_000)
         out("created: $vm")
 
         val stopped = CountDownLatch(1)
@@ -391,6 +478,7 @@ class Probe(
                 "onStopped" -> {
                     val r = args[1] as Int
                     stopReason = stopNames[r] ?: "code $r"
+                    timings.put("stopped", ms())
                     synchronized(events) { events += "+${ms()}ms onStopped(${stopReason})" }
                     stopped.countDown(); null
                 }
@@ -425,6 +513,7 @@ class Probe(
             exec.shutdownNow()
             return
         }
+        timings.put("run_returned", ms())
         out("run() returned after ${ms()} ms; status=${vmCls.getMethod("getStatus").invoke(vm)}")
 
         val console = StringBuffer()
@@ -440,7 +529,7 @@ class Probe(
                         if (n < 0) break
                         if (first && firstByteMs < 0) firstByteMs = ms()
                         buf.append(String(b, 0, n, Charsets.UTF_8))
-                        if (first && doneMs < 0 && buf.contains(DONE_MARKER)) doneMs = ms()
+                        if (first && doneMs < 0 && DONE_RE.containsMatchIn(buf)) doneMs = ms()
                     }
                 }
             }, "pump-$name").apply { isDaemon = true; start() }
@@ -467,9 +556,14 @@ class Probe(
         out("first console byte: ${if (firstByteMs >= 0) "+${firstByteMs}ms" else "never"}; " +
             "done marker: ${if (doneMs >= 0) "+${doneMs}ms" else "never"}")
         val consoleText = console.toString()
-        runCatching { File(outDir, "console.txt").writeText(consoleText) }
-        runCatching { File(outDir, "vmlog.txt").writeText(log.toString()) }
-        out("console: ${consoleText.length} chars -> ${File(outDir, "console.txt").path}")
+        runCatching { outFile("console.txt").writeText(consoleText) }
+        runCatching { outFile("vmlog.txt").writeText(log.toString()) }
+        out("console: ${consoleText.length} chars -> ${outFile("console.txt").path}")
+        if (firstByteMs >= 0) timings.put("first_console_byte", firstByteMs)
+        if (doneMs >= 0) timings.put("done_marker", doneMs)
+        stopReasonOut = stopReason
+        errorOut = errorMsg
+        guestKv = parseGuestKv(consoleText)
 
         when {
             consoleText.isEmpty() && (stopReason != null || errorMsg != null) ->
