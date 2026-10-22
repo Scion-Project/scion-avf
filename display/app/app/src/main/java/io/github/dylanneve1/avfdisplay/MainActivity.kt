@@ -28,7 +28,7 @@ import kotlin.random.Random
  *   am start -n io.github.dylanneve1.avfdisplay/.MainActivity --ez autorun true
  *     [--ez stock_display false|true] [--es gpu_backend 2d] [--el mem_mib 512]
  *     [--ei bench_s 5] [--ei run_s 60] [--ei taps 100] [--es shm auto|sharedmemory|ashmem]
- *     [--es fmt xb24|xr24] [--ei scale_div 1] [--es tag display]
+ *     [--es fmt xb24|xr24] [--ei bufs 2|1] [--ei scale_div 1] [--es tag display]
  *
  * Guest files: files/guest/{Image,initrd.img} in internal storage (the runner
  * streams them in with run-as). Results: <external files>/<tag>-{report.txt,
@@ -108,12 +108,13 @@ class MainActivity : Activity() {
             taps = i.getIntExtra("taps", 100),
             shm = i.getStringExtra("shm") ?: "auto",
             format = i.getStringExtra("fmt") ?: "xb24",
+            bufs = i.getIntExtra("bufs", 2),
             tag = i.getStringExtra("tag") ?: "display",
         )
         val res = linkedMapOf<String, Any?>()
         out("# AVF display/touch test  view=${viewW}x$viewH guest=${gw}x$gh dpi=${opts.dpi} mem=${opts.memMib}MiB " +
             "stock_display=${opts.stockDisplay} gpu_backend=${opts.gpuBackend} fmt=${opts.format}")
-        res["view"] = "${viewW}x$viewH"; res["guest_fb"] = "${gw}x$gh"; res["stock_display"] = opts.stockDisplay
+        res["view"] = "${viewW}x$viewH"; res["guest_fb"] = "${gw}x$gh"; res["stock_display"] = opts.stockDisplay; res["bufs"] = opts.bufs
         surfaceReady.await(10, TimeUnit.SECONDS)
         val sized = CountDownLatch(1)
         runOnUiThread { surface.holder.setFixedSize(gw, gh); sized.countDown() }
@@ -179,7 +180,7 @@ class MainActivity : Activity() {
         val mapped = waitLine(d, "SCFB mapped", 20000, stopped = { d.stoppedLatch?.count == 0L }) ?: return "GUEST_NO_REGION (${d.console.lines().lastOrNull { it.startsWith("SCFB") }})"
         res["guest_mapped"] = mapped
         res["host_pre_seen_by_guest"] = mapped.contains("host_pre=1")
-        val st = LongArray(8)
+        val st = LongArray(12)
         // First frame on the screen.
         val tFirst = SystemClock.elapsedRealtime() + 15000
         while (SystemClock.elapsedRealtime() < tFirst) { Scfb.stats(st); if (st[0] > 0) break; SystemClock.sleep(10) }
@@ -198,8 +199,11 @@ class MainActivity : Activity() {
             res["bench_host_fps"] = if (spanMs > 0) "%.1f".format(st[0] * 1000 / spanMs) else null
             res["bench_copy_ms_avg"] = if (st[0] > 0) "%.2f".format(st[2] / 1e6 / st[0]) else null
             res["bench_copy_ms_max"] = "%.2f".format(st[3] / 1e6)
+            res["bench_seqlock_waits_retries_torn"] = listOf(st[8], st[9], st[10])
+            res["bench_frames_with_mixed_rows"] = st[11]
             out("bench: guest [$done]; host presented ${st[0]} frames (${res["bench_host_fps"]} fps), " +
-                "skipped ${st[1]}, copy avg ${res["bench_copy_ms_avg"]} ms max ${res["bench_copy_ms_max"]} ms")
+                "skipped ${st[1]}, copy avg ${res["bench_copy_ms_avg"]} ms max ${res["bench_copy_ms_max"]} ms; " +
+                "seqlock waits/retries/torn ${res["bench_seqlock_waits_retries_torn"]}, frames with rows of two frames ${st[11]}")
         }
 
         // Touch: scripted reports through the same path as real touches.
@@ -255,8 +259,9 @@ class MainActivity : Activity() {
         res["real_touch_latency_posted_ms_p50_p90"] = listOf(pct(posted.take(n2), .5), pct(posted.take(n2), .9))
         val spanMs = (st[5] - st[4]) / 1e6
         res["idle_host_fps"] = if (spanMs > 0) "%.1f".format(st[0] * 1000 / spanMs) else null
+        res["idle_seqlock_waits_retries_torn"] = listOf(st[8], st[9], st[10])
         out("interactive: ${realTouchReports} real touch reports, latency posted p50/p90 ${res["real_touch_latency_posted_ms_p50_p90"]}; " +
-            "steady host fps ${res["idle_host_fps"]}")
+            "steady host fps ${res["idle_host_fps"]}, seqlock waits/retries/torn ${res["idle_seqlock_waits_retries_torn"]}")
         presenter.isDaemon
         return when {
             touchLines.isEmpty() -> "TOUCH_NOT_REACHING_GUEST"

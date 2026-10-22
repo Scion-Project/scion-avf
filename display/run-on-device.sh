@@ -9,7 +9,7 @@
 #
 #   display/run-on-device.sh [-s SERIAL] [--tag T] [--stock-display] [--gpu-backend B]
 #                            [--mem MIB] [--bench S] [--run S] [--taps N] [--shm auto|ashmem|sharedmemory]
-#                            [--fmt xb24|xr24] [--scale-div N] [--keep-grants] [--out DIR]
+#                            [--fmt xb24|xr24] [--bufs 2|1] [--scale-div N] [--keep-grants] [--out DIR]
 #
 # Takes the shared-device lock /data/local/tmp/pixel.lock for the whole run.
 set -euo pipefail
@@ -38,6 +38,7 @@ while [[ $# -gt 0 ]]; do
     --taps) EXTRAS+=(--ei taps "$2"); shift 2 ;;
     --shm) EXTRAS+=(--es shm "$2"); shift 2 ;;
     --fmt) EXTRAS+=(--es fmt "$2"); shift 2 ;;
+    --bufs) EXTRAS+=(--ei bufs "$2"); shift 2 ;;
     --scale-div) EXTRAS+=(--ei scale_div "$2"); shift 2 ;;
     --keep-grants) KEEP_GRANTS=1; shift ;;
     --out) OUT="$2"; shift 2 ;;
