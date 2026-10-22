@@ -53,6 +53,7 @@ class DisplayVm(private val ctx: Context, private val opts: Options, private val
         val taps: Int = 100,
         val shm: String = "auto",     // auto | sharedmemory | ashmem
         val format: String = "xb24",  // guest pixel layout: xb24 (RGBX) | xr24 (BGRX)
+        val bufs: Int = 2,            // 2: guest flips a pair; 1: draws in place under the seqlock (like XNU)
         val tag: String = "display",
     )
 
@@ -218,7 +219,7 @@ class DisplayVm(private val ctx: Context, private val opts: Options, private val
         val memParam = opts.memMib - TOP_GAP_MIB - REGION_MIB
         return "console=hvc0 earlycon=uart8250,mmio,0x3f8 panic=-1 rdinit=/init mem=${memParam}M " +
             "scfb.addr=0x${regionAddr.toString(16)} scfb.size=0x${regionSize.toString(16)} " +
-            "scfb.w=${opts.width} scfb.h=${opts.height} scfb.bench=${opts.benchSec} scfb.secs=0 scfb.fmt=${opts.format}"
+            "scfb.w=${opts.width} scfb.h=${opts.height} scfb.bench=${opts.benchSec} scfb.secs=0 scfb.fmt=${opts.format} scfb.bufs=${opts.bufs}"
     }
 
     fun buildAndRun(kernel: File, initrd: File): Boolean {

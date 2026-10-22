@@ -33,7 +33,7 @@ struct scfb_hdr {
     uint32_t stride, format;
     uint32_t buf_offset[2];
     uint32_t nbufs, flags;
-    uint32_t front, pad0;
+    uint32_t front, drawing;
     uint64_t frame_seq;
     uint64_t input_seq;
     uint64_t guest_ns;
@@ -60,7 +60,7 @@ static atomic_int lat_n;
 
 static atomic_int stop_flag;
 static uint64_t st_frames, st_missed, st_copy_ns, st_copy_max, st_first_ns, st_last_ns;
-static uint64_t st_guest_seq;
+static uint64_t st_guest_seq, st_waits, st_retries, st_torn, st_mixed;
 
 JNIEXPORT jlong JNICALL Java_io_github_dylanneve1_avfdisplay_Scfb_map(JNIEnv *e, jclass c, jint fd, jlong size) {
     (void)e, (void)c;
@@ -163,12 +163,6 @@ JNIEXPORT jint JNICALL Java_io_github_dylanneve1_avfdisplay_Scfb_presentLoop(JNI
             continue;
         }
         uint64_t t_seen = now_ns();
-        __atomic_store_n(&h->host_reading, seq, __ATOMIC_RELEASE);
-        __atomic_thread_fence(__ATOMIC_SEQ_CST);
-        // The guest publishes front before frame_seq, so front matches seq
-        // unless it already moved on (then we show the newer frame).
-        uint32_t front = h->front & 1;
-        uint64_t in_seq = h->input_seq;
         if (h->width != gw || h->height != gh || h->format != gfmt) {
             gw = h->width;
             gh = h->height;
@@ -182,17 +176,55 @@ JNIEXPORT jint JNICALL Java_io_github_dylanneve1_avfdisplay_Scfb_presentLoop(JNI
                 ANativeWindow_setBuffersGeometry(win, (int32_t)gw, (int32_t)gh, AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM);
                 swap = 1;
             }
-            LOGI("guest framebuffer %ux%u stride %u format 0x%x swizzle %d", gw, gh, h->stride, h->format, swap);
+            LOGI("guest framebuffer %ux%u stride %u format 0x%x swizzle %d buffers %u", gw, gh, h->stride, h->format,
+                 swap, h->nbufs);
         }
-        uint64_t off = h->buf_offset[front];
-        if (off + (uint64_t)h->stride * gh > (uint64_t)size) return -2;
         ANativeWindow_Buffer buf;
         if (ANativeWindow_lock(win, &buf, NULL) != 0) return -3;
-        uint64_t t_c0 = now_ns();
         uint32_t w = gw < (uint32_t)buf.width ? gw : (uint32_t)buf.width;
         uint32_t hh = gh < (uint32_t)buf.height ? gh : (uint32_t)buf.height;
-        copy_rows(buf.bits, buf.stride, (const uint8_t *)(uintptr_t)(base + off), h->stride, w, hh, swap);
+        uint32_t front = 0;
+        uint64_t in_seq = 0, t_c0 = 0;
+        // Two buffers: the guest flips and won't draw into the one we're reading.
+        // One buffer drawn in place: a seqlock. Wait while the guest is drawing,
+        // copy, and copy again if it started meanwhile (10 ms at most, then show it anyway).
+        // host_reading stays set while we wait, so a guest that draws back to back
+        // lets us in after its current frame instead of starting the next one.
+        __atomic_store_n(&h->host_reading, seq ? seq : 1, __ATOMIC_RELEASE);
+        for (int tries = 0;; tries++) {
+            __atomic_thread_fence(__ATOMIC_SEQ_CST);
+            int inplace = h->nbufs < 2;
+            if (inplace && h->drawing && tries < 40) {
+                st_waits++;
+                struct timespec ts = {0, 250000};
+                nanosleep(&ts, NULL);
+                continue;
+            }
+            seq = __atomic_load_n(&h->frame_seq, __ATOMIC_ACQUIRE);
+            front = h->front & 1;
+            in_seq = h->input_seq;
+            uint64_t off = h->buf_offset[front];
+            if (off + (uint64_t)h->stride * gh > (uint64_t)size) return -2;
+            t_c0 = now_ns();
+            copy_rows(buf.bits, buf.stride, (const uint8_t *)(uintptr_t)(base + off), h->stride, w, hh, swap);
+            __atomic_thread_fence(__ATOMIC_SEQ_CST);
+            if (!inplace || (!h->drawing && h->frame_seq == seq)) break;
+            if (tries >= 40) {
+                st_torn++;
+                break;
+            }
+            st_retries++;
+        }
         uint64_t t_c1 = now_ns();
+        // Tear check for the test guest's bench pattern, where the red channel at x = 0 is
+        // the same on every row of one frame: rows from two frames in one copy show up here.
+        if (hh > 8) {
+            int r = (h->format == FOURCC_XR24 && !swap) ? 2 : 0;
+            const uint8_t *px = (const uint8_t *)buf.bits;
+            size_t row = (size_t)buf.stride * 4;
+            uint8_t a = px[(size_t)(hh / 4) * row + r], b = px[(size_t)(hh / 2) * row + r], d = px[(size_t)(hh - 1) * row + r];
+            if (a != b || b != d) st_mixed++;
+        }
         __atomic_store_n(&h->host_seq, seq, __ATOMIC_RELEASE);
         __atomic_store_n(&h->host_reading, 0, __ATOMIC_RELEASE);
         ANativeWindow_unlockAndPost(win);
@@ -227,17 +259,21 @@ JNIEXPORT jint JNICALL Java_io_github_dylanneve1_avfdisplay_Scfb_presentLoop(JNI
     return 0;
 }
 
-// [frames, missed, copy_ns_total, copy_ns_max, first_ns, last_ns, guest_seq, latency_count]
+// [frames, missed, copy_ns_total, copy_ns_max, first_ns, last_ns, guest_seq, latency_count,
+//  waits (guest was drawing), retries (it started during the copy), torn (shown anyway),
+//  mixed (frames whose rows disagree: only meaningful for the bench pattern)]
 JNIEXPORT void JNICALL Java_io_github_dylanneve1_avfdisplay_Scfb_stats(JNIEnv *env, jclass c, jlongArray out) {
     (void)c;
-    jlong v[8] = {(jlong)st_frames, (jlong)st_missed, (jlong)st_copy_ns, (jlong)st_copy_max,
-                  (jlong)st_first_ns, (jlong)st_last_ns, (jlong)st_guest_seq, (jlong)atomic_load(&lat_n)};
-    (*env)->SetLongArrayRegion(env, out, 0, 8, v);
+    jlong v[12] = {(jlong)st_frames, (jlong)st_missed, (jlong)st_copy_ns, (jlong)st_copy_max,
+                   (jlong)st_first_ns, (jlong)st_last_ns, (jlong)st_guest_seq, (jlong)atomic_load(&lat_n),
+                   (jlong)st_waits, (jlong)st_retries, (jlong)st_torn, (jlong)st_mixed};
+    (*env)->SetLongArrayRegion(env, out, 0, 12, v);
 }
 
 JNIEXPORT void JNICALL Java_io_github_dylanneve1_avfdisplay_Scfb_resetStats(JNIEnv *env, jclass c) {
     (void)env, (void)c;
     st_frames = st_missed = st_copy_ns = st_copy_max = st_first_ns = st_last_ns = 0;
+    st_waits = st_retries = st_torn = st_mixed = 0;
     atomic_store(&lat_n, 0);
 }
 

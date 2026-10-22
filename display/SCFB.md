@@ -34,6 +34,7 @@ buffers start at `buf_offset[i]` from the region start, 64 KiB aligned.
 | 0x20 | `u32 nbufs` | guest | 1 (draw in place, like ramfb) or 2 (flip) |
 | 0x24 | `u32 flags` | guest | bit 0 `READY`: header valid. Bit 1 `POLL`: frames aren't published (e.g. a text console), so the host copies periodically |
 | 0x28 | `u32 front` | guest | buffer holding frame `frame_seq` |
+| 0x2c | `u32 drawing` | guest | one buffer drawn in place: 1 while a frame is being drawn (seqlock with `host_reading`) |
 | 0x30 | `u64 frame_seq` | guest | frames published. Written last, after a barrier |
 | 0x38 | `u64 input_seq` | guest | input reports consumed when this frame was drawn (0 if unknown); the host uses it to time input → pixels |
 | 0x40 | `u64 guest_ns` | guest | guest monotonic time at publish |
@@ -44,15 +45,43 @@ buffers start at `buf_offset[i]` from the region start, 64 KiB aligned.
 
 ## Protocol
 
-Guest, per frame: draw into the back buffer (or in place), then `dsb`, set
-`dirty`, `input_seq` and `guest_ns`, set `front`, `dmb`, `frame_seq++`.
+**Two buffers (`nbufs` = 2).**
 
-Host: poll `frame_seq` (the test app sleeps 250 µs between looks). When it
-changes, set `host_reading`, copy `buf[front]` into the SurfaceView's
-`ANativeWindow`, set `host_seq` and clear `host_reading`, then post. The
-buffer queue is RGBX_8888 for `XB24` and BGRA_8888 (HAL format 5) for `XR24`,
-so both copy with a plain `memcpy`. A guest that doesn't publish (`POLL`)
-gets copied at the refresh rate.
+* Guest, per frame:
+  1. Wait while `host_reading` is the frame in the back buffer (bounded).
+  2. Draw into the back buffer.
+  3. `dsb`, then set `dirty`, `input_seq`, `guest_ns` and `front`.
+  4. `dmb`, then `frame_seq++`.
+* Host: when `frame_seq` changes, set `host_reading`, copy `buf[front]`, set
+  `host_seq`, clear `host_reading`, post.
+
+**One buffer drawn in place (`nbufs` = 1, what XNU does).** This is a seqlock.
+
+* Guest:
+  1. Wait while `host_reading` ≠ 0 (4 ms at most).
+  2. Set `drawing` = 1, then `dsb`. If `host_reading` became set in the
+     meantime, clear `drawing` and wait again.
+  3. Draw.
+  4. `dsb`, clear `drawing`, `frame_seq++`.
+* Host:
+  1. Set `host_reading` and keep it set while waiting for `drawing` to clear
+     (10 ms at most). Keeping it set means a guest that draws back to back
+     lets the host in after its current frame.
+  2. Copy.
+  3. Recopy if `drawing` was set, or `frame_seq` moved, during the copy.
+
+**Throughout.** The buffer queue is RGBX_8888 for `XB24` and BGRA_8888 (HAL
+format 5) for `XR24`, so both copy with a plain `memcpy`. A guest that doesn't
+publish (`POLL`) is copied at the refresh rate.
+
+Pixel 10 (`display/run-on-device.sh --bufs N --fmt xr24`), with the guest
+redrawing every pixel back to back:
+
+| Mode | Presented | Frames mixing rows of two frames |
+|---|---|---|
+| `--bufs 0` (one buffer, no seqlock, like ramfb) | 69 fps | 128 of 345 |
+| `--bufs 1` (seqlock) | 120 fps | 0 (2 recopies, 0 shown torn) |
+| `--bufs 2` (flip) | 120 fps | 0 |
 
 Memory attributes: the host maps the region cacheable. A Linux guest reaches
 it through `/dev/mem` as Device memory, so it must avoid unaligned accesses
