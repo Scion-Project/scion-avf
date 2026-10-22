@@ -39,6 +39,15 @@ exemption. It also covers what crosvm exposes and the copy-paste steps for the
 (still pending) Pixel 10 run. The tooling is in [probe/](probe): a Kotlin probe
 app, a tiny Linux guest, and `run-on-device.sh`.
 
+## Measuring what the phone gives us
+
+[docs/AVF-BENCH.md](docs/AVF-BENCH.md) describes the one command
+(`tools/run-all.sh`) that answers, on a real Pixel 10, what a sideloaded custom
+VM gets (RAM, vCPUs, 4 KiB vs 16 KiB pages, virtio devices, boot time) and how
+much faster native-under-pKVM is than QEMU TCG on the same phone
+([bench/](bench): a tiny Linux guest with int/mem/chase/syscall/page-fault
+microbenchmarks, run natively, in an AVF VM and under a static QEMU).
+
 ## Ground rules
 
 Same as the main project ([ETHICS.md](https://github.com/dylanneve1/ios-on-pixel/blob/main/docs/ETHICS.md)):
