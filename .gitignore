@@ -20,3 +20,8 @@ display/app/.gradle/
 display/app/.kotlin/
 display/app/local.properties
 display/results/
+gpu3d/app/build/
+gpu3d/app/app/build/
+gpu3d/app/.gradle/
+gpu3d/app/local.properties
+gpu3d/results/
