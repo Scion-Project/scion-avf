@@ -2,6 +2,7 @@
 package io.github.dylanneve1.avfdisplay
 
 import android.app.Activity
+import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import android.os.SystemClock
@@ -65,19 +66,80 @@ class MainActivity : Activity() {
             it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
         surface.holder.addCallback(object : SurfaceHolder.Callback {
-            override fun surfaceCreated(h: SurfaceHolder) = surfaceReady.countDown()
+            override fun surfaceCreated(h: SurfaceHolder) {
+                surfaceReady.countDown()
+                if (VmService.session != null) attachOs()   // back to a VM that kept running
+            }
             override fun surfaceChanged(h: SurfaceHolder, f: Int, w: Int, hh: Int) {}
             override fun surfaceDestroyed(h: SurfaceHolder) { Scfb.stop() }
         })
         surface.setOnTouchListener { v, ev ->
-            val d = dvm
-            if (d != null && d.sendTouch(ev)) realTouchReports++
+            val s = VmService.session
+            if (s != null) {
+                if (s.vm.sendTouch(ev)) s.realTouchReports++
+            } else {
+                val d = dvm
+                if (d != null && d.sendTouch(ev)) realTouchReports++
+            }
             if (ev.actionMasked == MotionEvent.ACTION_UP) v.performClick()
             true
         }
-        if (savedInstanceState == null && intent.getBooleanExtra("autorun", false)) {
+        // Autorun only for a fresh launch with the extras: not when the activity is recreated, nor
+        // when it comes back from recents (whose intent still carries autorun).
+        val fresh = savedInstanceState == null && intent.getBooleanExtra("autorun", false) &&
+            (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) == 0
+        if (intent.getBooleanExtra("os_mode", false)) {
+            status.visibility = View.GONE
+            if (fresh && VmService.session == null) {
+                // The VM runs in a foreground service: leaving the app doesn't stop it.
+                surface.post {
+                    startForegroundService(Intent(this, VmService::class.java).putExtras(intent)
+                        .putExtra("view_w", surface.width).putExtra("view_h", surface.height))
+                    attachOs()
+                }
+            }
+        } else if (fresh) {
             surface.post { Thread({ runCatching { run() }.onFailure { out("crashed: $it"); Log.e(TAG, "crash", it) } }, "run").start() }
         }
+    }
+
+    @Volatile private var presenting = false
+
+    /** Show the service's VM: once its region exists, copy its frames to this activity's surface. */
+    private fun attachOs() {
+        if (presenting) return
+        presenting = true
+        Thread({
+            try {
+                var s: VmService.Session? = null
+                for (k in 0 until 300) {
+                    s = VmService.session
+                    if (s != null && s.vm.base != 0L) break
+                    SystemClock.sleep(100)
+                }
+                if (s == null || s.vm.base == 0L) return@Thread
+                val sized = CountDownLatch(1)
+                runOnUiThread {
+                    surface.holder.setFixedSize(s.opts.width, s.opts.height)
+                    s.vm.setScale(s.opts.width.toFloat() / surface.width, s.opts.height.toFloat() / surface.height)
+                    sized.countDown()
+                }
+                sized.await(2, TimeUnit.SECONDS)
+                SystemClock.sleep(300)
+                for (attempt in 0 until 100) {
+                    if (s.done) break
+                    val sf = surface.holder.surface
+                    if (sf != null && sf.isValid) {
+                        val rc = Scfb.presentLoop(sf, s.vm.base, s.vm.regionSize)
+                        Log.i(TAG, "present loop ended rc=$rc")
+                        if (rc != -1) break
+                    }
+                    SystemClock.sleep(100)
+                }
+            } finally {
+                presenting = false
+            }
+        }, "present").start()
     }
 
     private fun out(s: String) {
@@ -94,29 +156,9 @@ class MainActivity : Activity() {
         val i = intent
         val viewW = surface.width
         val viewH = surface.height
-        val div = i.getIntExtra("scale_div", 1).coerceAtLeast(1)
-        // Guest framebuffer = the view's pixel size (optionally divided), even dimensions.
-        // Guest framebuffer: --ei fb_w/fb_h (HackiOS: 1125x2436), else the view's size / scale_div.
-        val gw = i.getIntExtra("fb_w", 0).takeIf { it > 0 } ?: ((viewW / div) and 1.inv())
-        val gh = i.getIntExtra("fb_h", 0).takeIf { it > 0 } ?: ((viewH / div) and 1.inv())
-        val opts = DisplayVm.Options(
-            width = gw, height = gh, dpi = resources.displayMetrics.densityDpi / div,
-            memMib = i.getLongExtra("mem_mib", 512),
-            stockDisplay = i.getBooleanExtra("stock_display", false),
-            gpuBackend = i.getStringExtra("gpu_backend"),
-            benchSec = i.getIntExtra("bench_s", 5),
-            runSec = i.getIntExtra("run_s", 60),
-            taps = i.getIntExtra("taps", 100),
-            shm = i.getStringExtra("shm") ?: "auto",
-            format = i.getStringExtra("fmt") ?: "xb24",
-            bufs = i.getIntExtra("bufs", 2),
-            osMode = i.getBooleanExtra("os_mode", false),
-            extraParams = i.getStringExtra("os_params") ?: "",
-            disks = (i.getStringExtra("disks") ?: "").split(',').filter { it.isNotBlank() },
-            matchHostCpus = i.getBooleanExtra("match_host_cpus", false),
-            cpuCount = i.getIntExtra("cpu_count", 0),
-            tag = i.getStringExtra("tag") ?: "display",
-        )
+        val opts = options(i, viewW, viewH, resources.displayMetrics.densityDpi)
+        val gw = opts.width
+        val gh = opts.height
         val res = linkedMapOf<String, Any?>()
         out("# AVF display/touch test  view=${viewW}x$viewH guest=${gw}x$gh dpi=${opts.dpi} mem=${opts.memMib}MiB " +
             "stock_display=${opts.stockDisplay} gpu_backend=${opts.gpuBackend} fmt=${opts.format}")
@@ -129,7 +171,7 @@ class MainActivity : Activity() {
 
         val d = DisplayVm(this, opts, ::out)
         val verdict = try {
-            if (opts.osMode) executeOs(d, opts, viewW, viewH, res) else execute(d, opts, viewW, res)
+            execute(d, opts, viewW, res)
         } catch (t: Throwable) {
             out("FAILED: $t"); Log.e(TAG, "run", t); "CRASH ${t.javaClass.simpleName}: ${t.message}"
         }
@@ -152,72 +194,6 @@ class MainActivity : Activity() {
             SystemClock.sleep(50)
         }
         return null
-    }
-
-    /**
-     * Another OS (HackiOS's XNU through avfboot): files/guest/<kernel> as the VM's kernel (avfboot's
-     * Image), <initrd> (the XNUP payload), the disks read-only. Shows whatever the guest publishes
-     * for run_s seconds, forwarding touches, and saves the console every few seconds.
-     */
-    private fun executeOs(d: DisplayVm, opts: DisplayVm.Options, viewW: Int, viewH: Int, res: MutableMap<String, Any?>): String {
-        if (!d.createRegion()) return "REGION_FAILED"
-        val dir = getExternalFilesDir(null) ?: filesDir
-        d.consoleListener = { line ->
-            if (line.contains("MiniIOMobileFramebuffer") || line.contains("virtio-") || line.contains("panic") ||
-                line.contains("SpringBoard") && line.contains("spawned")) out("guest: ${line.take(200)}")
-        }
-        val presenter = Thread({
-            var rc = -1
-            for (attempt in 0 until 100) {
-                val sf = surface.holder.surface
-                if (sf != null && sf.isValid) {
-                    rc = Scfb.presentLoop(sf, d.base, d.regionSize)
-                    if (rc != -1) break
-                }
-                SystemClock.sleep(100)
-            }
-            out("present loop ended rc=$rc")
-        }, "present").apply { start() }
-        val gdir = File(filesDir, "guest")
-        val kernel = File(gdir, intent.getStringExtra("kernel") ?: "Image")
-        val initrd = File(gdir, intent.getStringExtra("initrd") ?: "initrd.img")
-        if (!kernel.isFile || !initrd.isFile) return "GUEST_FILES_MISSING (${kernel.name}, ${initrd.name})"
-        out("params: ${d.params()}")
-        val tRun = SystemClock.elapsedRealtime()
-        if (!d.buildAndRun(kernel, initrd)) return "VM_START_FAILED"
-        dvm = d
-        d.setScale(opts.width.toFloat() / viewW, opts.height.toFloat() / viewH)
-        val st = LongArray(12)
-        var firstFrame: Long? = null
-        var lastSave = 0L
-        val end = tRun + opts.runSec * 1000L
-        out("running for ${opts.runSec} s")
-        while (SystemClock.elapsedRealtime() < end && d.stoppedLatch?.count != 0L) {
-            Scfb.stats(st)
-            val now = SystemClock.elapsedRealtime()
-            if (firstFrame == null && st[0] > 0) {
-                firstFrame = now - tRun
-                out("first published frame ${firstFrame} ms after run()")
-                // The guest's screen is the whole display from here on: the log overlay would
-                // cover it (and the console still goes to <tag>-console.txt).
-                if (!intent.getBooleanExtra("overlay", false)) runOnUiThread { status.visibility = View.GONE }
-            }
-            if (now - lastSave > 5000) {
-                lastSave = now
-                runCatching { File(dir, "${opts.tag}-console.txt").writeText(d.console.toString()) }
-                out("t=${(now - tRun) / 1000}s frames=${st[0]} guest_seq=${st[6]} console=${d.console.length}B")
-            }
-            SystemClock.sleep(200)
-        }
-        Scfb.stats(st)
-        res["first_frame_ms_after_run"] = firstFrame
-        res["frames_presented"] = st[0]
-        res["guest_frame_seq"] = st[6]
-        res["copy_ms_avg"] = if (st[0] > 0) "%.2f".format(st[2] / 1e6 / st[0]) else null
-        res["real_touch_reports"] = realTouchReports
-        res["console_bytes"] = d.console.length
-        presenter.isDaemon
-        return if (st[0] > 0) "OK" else "NO_FRAMES"
     }
 
     private fun execute(d: DisplayVm, opts: DisplayVm.Options, viewW: Int, res: MutableMap<String, Any?>): String {
@@ -356,5 +332,34 @@ class MainActivity : Activity() {
         super.onDestroy()
     }
 
-    companion object { const val TAG = "AvfDisplay" }
+    companion object {
+        const val TAG = "AvfDisplay"
+
+        /** The run's options, from the intent's extras (see the class comment). */
+        fun options(i: Intent, viewW: Int, viewH: Int, densityDpi: Int): DisplayVm.Options {
+        val div = i.getIntExtra("scale_div", 1).coerceAtLeast(1)
+        // Guest framebuffer = the view's pixel size (optionally divided), even dimensions.
+        // Guest framebuffer: --ei fb_w/fb_h (HackiOS: 1125x2436), else the view's size / scale_div.
+        val gw = i.getIntExtra("fb_w", 0).takeIf { it > 0 } ?: ((viewW / div) and 1.inv())
+        val gh = i.getIntExtra("fb_h", 0).takeIf { it > 0 } ?: ((viewH / div) and 1.inv())
+        return DisplayVm.Options(
+            width = gw, height = gh, dpi = densityDpi / div,
+            memMib = i.getLongExtra("mem_mib", 512),
+            stockDisplay = i.getBooleanExtra("stock_display", false),
+            gpuBackend = i.getStringExtra("gpu_backend"),
+            benchSec = i.getIntExtra("bench_s", 5),
+            runSec = i.getIntExtra("run_s", 60),
+            taps = i.getIntExtra("taps", 100),
+            shm = i.getStringExtra("shm") ?: "auto",
+            format = i.getStringExtra("fmt") ?: "xb24",
+            bufs = i.getIntExtra("bufs", 2),
+            osMode = i.getBooleanExtra("os_mode", false),
+            extraParams = i.getStringExtra("os_params") ?: "",
+            disks = (i.getStringExtra("disks") ?: "").split(',').filter { it.isNotBlank() },
+            matchHostCpus = i.getBooleanExtra("match_host_cpus", false),
+            cpuCount = i.getIntExtra("cpu_count", 0),
+            tag = i.getStringExtra("tag") ?: "display",
+        )
+        }
+    }
 }
