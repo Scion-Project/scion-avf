@@ -3,7 +3,9 @@
 Status: **tooling done and verified as far as possible without the phone. The
 Pixel 10 run is still pending** (steps in [section 4](#4-pixel-10-run-untested)).
 This spike involves no Apple software: the guest is a stock Debian arm64 kernel
-plus a 17 KB init of our own.
+plus a small init of our own. The hardened runner, the RAM/vCPU/16 KiB sweeps and
+the pKVM-vs-TCG benchmark built on this probe are described in
+[AVF-BENCH.md](AVF-BENCH.md); `tools/run-all.sh` runs both.
 
 Sources are marked like this throughout:
 
@@ -115,12 +117,19 @@ probe/guest/build.sh                       # downloads a SHA-256-pinned Debian k
 ```
 
 **One command** does the whole run below, pulls the results into
-`probe/results/<timestamp>/`, and on exit restores the exemption setting and
-revokes the grants:
+`probe/results/<timestamp>/` (with `summary.md`/`summary.json` and a
+`<tag>-result.json` per run), and on exit restores the exemption and
+stay-awake settings and revokes the grants, also on Ctrl-C. It never prompts and
+fails fast if no device, or several, are attached:
 
 ```sh
 probe/run-on-device.sh               # add -s <serial> if more than one device is attached
+probe/run-on-device.sh --full        # + all-host-CPUs, 16 KiB-page kernel, guest-RAM sweep
 ```
+
+`tools/docker-build.sh` and `tools/docker-apk.sh` build the guest and the APK
+without a local toolchain (both kernels, 4 KiB and 16 KiB, are fetched and
+SHA-256-checked).
 
 **The same steps by hand, one copy-paste block:**
 
@@ -251,14 +260,14 @@ section 6.
 
 | What | How | Result |
 |---|---|---|
-| Guest builds reproducibly | `probe/guest/build.sh` | Debian deb SHA-256 `88926feb…88da` matches the pin. `init` is a 17 KB static aarch64 ELF; `initrd.img` is 6 KB |
+| Guest builds reproducibly | `probe/guest/build.sh` | Debian deb SHA-256 `88926feb…88da` matches the pin. `init` is a 17 KB static aarch64 ELF (23 KB with the later `AVFKV` summary and clang 19); `initrd.img` is 6-7 KB |
 | Guest boots and prints the platform | QEMU 11.1, `-M virt,gic-version=3 -accel hvf -cpu host -smp 2 -m 512 -kernel Image -initrd initrd.img -append "console=ttyAMA0 panic=-1"` | 3 mounts ok, all sections printed, `=== AVFPROBE DONE ===`, `reboot: Power down` at 0.27 s [qemu]. Log: [`spike-1/qemu-hvf-console.txt`](spike-1/qemu-hvf-console.txt) |
 | hvc0 console path | Same, with `-device virtio-serial-pci -device virtconsole` and `console=hvc0` | full output on the virtio-console; the PCI dump lists the virtio-console `1af4:1003` [qemu] |
 | init's dump code on Android | `init --dry-run` under `adb shell` on the emulator | all sections printed, exit 0 [emu] |
 | App builds | `./gradlew assembleDebug` (AGP 9.3.3, Gradle 9.7.1, built-in Kotlin) | ok |
 | Permission protection levels | probe report + `dumpsys package permission …` | MANAGE `signature\|development\|preinstalled`, USE_CUSTOM `signature\|development`, DEBUG `signature` [emu] |
 | Hidden-API blocks and the minimum exemption | probe without / with `hidden_api_blacklist_exemptions` (`:` vs `,`), and `hidden_api_policy 1`; `hiddenapi:` logcat lines | 7 members `denied` by default; `,`-list makes them `allowed`; `:`-list doesn't [emu] |
-| Runner script and revert | `probe/run-on-device.sh -s emulator-5554` | install, grants, exemption, push, run, pull all ok. Afterwards the setting is back to `null` and the grants are revoked [emu] |
+| Runner script and revert (first version) | `probe/run-on-device.sh -s emulator-5554` | install, grants, exemption, push, run, pull all ok. Afterwards the setting is back to `null` and the grants are revoked [emu] |
 | Anything on a Pixel 10 | — | **not run** |
 
 ## 9. Open questions for the Pixel run
