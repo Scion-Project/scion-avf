@@ -19,6 +19,7 @@ import android.widget.TextView
  *     [--ez boot false] [--ez protected true] [--el mem_mib 256] \
  *     [--ez match_host_cpus true] [--el timeout_s 60] [--es params "..."] \
  *     [--es guest_dir guest] [--es kernel Image] [--es initrd initrd.img] [--es tag mem1024]
+ *     [--es disks a.img,b.img] [--ez disks_rw true]   (virtio-blk disks from guest_dir)
  * The report goes to logcat (tag AvfProbe) and to
  * /sdcard/Android/data/io.github.dylanneve1.avfprobe/files/[<tag>-]report.txt;
  * [<tag>-]result.json is written last and holds the machine-readable result.
@@ -67,6 +68,8 @@ class MainActivity : Activity() {
             guestDir = i.getStringExtra("guest_dir") ?: d.guestDir,
             kernelFile = i.getStringExtra("kernel") ?: d.kernelFile,
             initrdFile = i.getStringExtra("initrd") ?: d.initrdFile,
+            disks = i.getStringExtra("disks") ?: d.disks,
+            disksWritable = i.getBooleanExtra("disks_rw", d.disksWritable),
             tag = i.getStringExtra("tag") ?: d.tag,
         )
     }

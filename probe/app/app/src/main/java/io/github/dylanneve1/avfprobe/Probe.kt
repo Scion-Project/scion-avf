@@ -56,6 +56,10 @@ class Probe(
         val guestDir: String = "guest",
         val kernelFile: String = "Image",
         val initrdFile: String = "initrd.img",
+        /** Disk images in guestDir to attach as virtio-blk, comma-separated ("" = none). */
+        val disks: String = "",
+        /** Attach them writable (Disk.RWDisk) instead of read-only (Disk.RODisk). */
+        val disksWritable: Boolean = false,
         /** Prefix for the output files (report/console/vmlog/result.json); "" = none. */
         val tag: String = "",
     )
@@ -154,6 +158,7 @@ class Probe(
             put("match_host_cpus", opts.matchHostCpus); put("timeout_s", opts.timeoutSec)
             put("params", opts.params); put("guest_dir", opts.guestDir)
             put("kernel", opts.kernelFile); put("initrd", opts.initrdFile)
+            put("disks", opts.disks); put("disks_writable", opts.disksWritable)
         })
         put("host", facts)
         put("capabilities", capsOut)
@@ -375,6 +380,14 @@ class Probe(
                     .onFailure { out("note: copying ${s.path} failed: ${describe(it)}") }
             }
         }
+        for (name in diskNames()) {
+            val sd = File(src, name)
+            val dd = File(dst, name)
+            if (sd.isFile && (!dd.isFile || dd.length() != sd.length() || dd.lastModified() < sd.lastModified())) {
+                sd.copyTo(dd, overwrite = true)
+            }
+            out("disk: ${dd.path} ${if (dd.isFile) "${dd.length()} bytes" else "MISSING"}")
+        }
         val (k, i) = pairs.map { it.second }
         out("kernel: ${k.path} ${if (k.isFile) "${k.length()} bytes" else "MISSING"}")
         out("initrd: ${i.path} ${if (i.isFile) "${i.length()} bytes" else "MISSING"}")
@@ -385,6 +398,8 @@ class Probe(
         }
         return k to i
     }
+
+    private fun diskNames(): List<String> = opts.disks.split(',').map { it.trim() }.filter { it.isNotEmpty() }
 
     // ---- gate 5: config ----------------------------------------------------
 
@@ -410,6 +425,17 @@ class Probe(
             b = api.m("imgB.setInitrdPath").invoke(b, guest.second.path)
             for (p in opts.params.split(' ').filter { it.isNotBlank() }) {
                 b = api.m("imgB.addParam").invoke(b, p)
+            }
+            if (diskNames().isNotEmpty()) {
+                // @hide: VirtualMachineCustomImageConfig.Disk.RODisk/RWDisk(path), Builder.addDisk(Disk)
+                val diskCls = Class.forName("$PKG.VirtualMachineCustomImageConfig\$Disk")
+                val make = diskCls.getMethod(if (opts.disksWritable) "RWDisk" else "RODisk", String::class.java)
+                val add = api.imgBuilder!!.getMethod("addDisk", diskCls)
+                for (name in diskNames()) {
+                    val path = File(File(ctx.filesDir, opts.guestDir), name).path
+                    b = add.invoke(b, make.invoke(null, path))
+                    out("disk attached: $path (${if (opts.disksWritable) "rw" else "ro"})")
+                }
             }
             val img = api.m("imgB.build").invoke(b)
             var c = api.cfgBuilderCtor.newInstance(ctx)
