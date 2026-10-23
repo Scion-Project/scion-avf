@@ -32,13 +32,13 @@ buffers start at `buf_offset[i]` from the region start, 64 KiB aligned.
 | 0x14 | `u32 format` | guest | DRM fourcc: `XB24` (bytes R,G,B,X) or `XR24` (bytes B,G,R,X, what iOS draws) |
 | 0x18 | `u32 buf_offset[2]` | guest | buffer offsets; equal when `nbufs` = 1 |
 | 0x20 | `u32 nbufs` | guest | 1 (draw in place, like ramfb) or 2 (flip) |
-| 0x24 | `u32 flags` | guest | bit 0 `READY`: header valid. Bit 1 `POLL`: frames aren't published (e.g. a text console), so the host copies periodically |
+| 0x24 | `u32 flags` | guest | bit 0 `READY`: header valid. Bit 1 `POLL`: frames aren't published (e.g. a text console), so the host copies periodically. Bit 2 `DAMAGE`: `dirty` is exact for every published frame; an empty rectangle (w or h = 0) means nothing changed |
 | 0x28 | `u32 front` | guest | buffer holding frame `frame_seq` |
 | 0x2c | `u32 drawing` | guest | one buffer drawn in place: 1 while a frame is being drawn (seqlock with `host_reading`) |
 | 0x30 | `u64 frame_seq` | guest | frames published. Written last, after a barrier |
 | 0x38 | `u64 input_seq` | guest | input reports consumed when this frame was drawn (0 if unknown); the host uses it to time input → pixels |
 | 0x40 | `u64 guest_ns` | guest | guest monotonic time at publish |
-| 0x48 | `u32 dirty[4]` | guest | x, y, w, h changed since the previous frame |
+| 0x48 | `u32 dirty[4]` | guest | x, y, w, h changed since the previous frame. Without `DAMAGE`, a hint that may cover more (HackiOS before patch 1204 always sent the whole screen) |
 | 0x58 | `u64 host_seq` | host | last frame the host finished copying |
 | 0x60 | `u64 host_reading` | host | frame being copied now, 0 when idle. A double-buffering guest doesn't draw into that frame's buffer |
 | 0x68 | `u64 host_ns` | host | host time at the last copy. Set before boot, so a guest can confirm the memory really is shared |
@@ -73,6 +73,18 @@ buffers start at `buf_offset[i]` from the region start, 64 KiB aligned.
 **Throughout.** The buffer queue is RGBX_8888 for `XB24` and BGRA_8888 (HAL
 format 5) for `XR24`, so both copy with a plain `memcpy`. A guest that doesn't
 publish (`POLL`) is copied at the refresh rate.
+
+**Damage.** A frame that directly follows the last one the host showed (`frame_seq` = last + 1)
+needs only its `dirty` rectangle copied. The Scion app (scion #123) locks the window to that
+rectangle, and the buffer queue keeps the rest from the previous buffer. With `DAMAGE` set and an
+empty rectangle, the frame isn't copied at all. Everything else is copied whole: the first frame,
+skipped frames, `POLL` refreshes and torn frames.
+
+HackiOS (patch 1204) finds the rectangle without reading the panel's write-combined memory. It
+keeps a cached shadow of the panel and compares each row it draws with the shadow. It writes only
+the changed span to both the shadow and the panel, and merges the bounds from all drawing threads
+without locks. It sets `DAMAGE` from the second published frame on. The first frame after the
+boot console goes out whole.
 
 Pixel 10 (`display/run-on-device.sh --bufs N --fmt xr24`), with the guest
 redrawing every pixel back to back:
