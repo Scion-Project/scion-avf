@@ -1,7 +1,7 @@
-# ios-on-pixel-avf
+# scion-avf
 
 Experimental **hardware-virtualization backend** for
-[ios-on-pixel](https://github.com/dylanneve1/ios-on-pixel): run the emulated
+[Scion](https://github.com/Scion-Project/scion): run the emulated
 iPhone 11 on the Pixel's own virtualization (Android Virtualization Framework,
 pKVM, crosvm) instead of QEMU's software CPU emulation.
 
@@ -11,7 +11,7 @@ pKVM, crosvm) instead of QEMU's software CPU emulation.
 
 ## Why a separate repo
 
-The QEMU backend builds on our fork of [Inferno](https://github.com/dylanneve1/Inferno).
+The QEMU backend builds on our fork of [Inferno](https://github.com/Scion-Project/pyre).
 This backend is a different engine (crosvm-based, Rust) and moves at a
 different pace, so it lives here. The app talks to either backend through one
 interface.
@@ -50,7 +50,7 @@ microbenchmarks, run natively, in an AVF VM and under a static QEMU).
 
 ## Ground rules
 
-Same as the main project ([ETHICS.md](https://github.com/dylanneve1/ios-on-pixel/blob/main/docs/ETHICS.md)):
+Same as the main project ([ETHICS.md](https://github.com/Scion-Project/scion/blob/main/docs/ETHICS.md)):
 no Apple software, keys or instructions for obtaining them in this repo; and any
 changes to guest code under the hypervisor must **preserve behaviour**. Security
 monitors (SPTM/TXM) keep running and enforcing; only the way calls reach them may
