@@ -15,7 +15,7 @@ import java.util.concurrent.TimeUnit
 /**
  * Boots one non-protected custom AVF VM with a virtio-gpu (crosvm `--gpu`, via the @hide
  * VirtualMachineCustomImageConfig.GpuConfig) and records its console. The guest is
- * hackios-xnu-kernel's avf/gpu3d/probe Image, which draws through gfxstream and prints
+ * scion-kernel's avf/gpu3d/probe Image, which draws through gfxstream and prints
  * "GPU3D ..." lines; gpu3d/run-on-device.sh drives this.
  *
  *   am start -n io.github.dylanneve1.gpu3dprobe/.MainActivity \

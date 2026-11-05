@@ -33,7 +33,7 @@ So for Scion:
 * **Display = SCFB** ([display/SCFB.md](../display/SCFB.md)): the AVF
   equivalent of the `ramfb` that HackiOS already draws into. The XNU side is
   small: avfboot points boot_args' video at the region, and
-  MiniIOMobileFramebuffer publishes each frame (hackios-xnu-kernel,
+  MiniIOMobileFramebuffer publishes each frame (scion-kernel,
   `avf/display`).
 * **Touch = virtio-input multi-touch** added to the raw config, driven by the
   app's own evdev writer (same wire format as the framework's).

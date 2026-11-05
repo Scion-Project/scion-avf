@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Boots the gpu3d probe guest (hackios-xnu-kernel avf/gpu3d/probe, out/Image) in an AVF VM
+# Boots the gpu3d probe guest (scion-kernel avf/gpu3d/probe, out/Image) in an AVF VM
 # that has a virtio-gpu with the gfxstream renderer, and pulls its console.
 #
 #   gpu3d/run-on-device.sh [-s SERIAL] [--image PATH] [--initrd PATH] [--match-host-cpus]
