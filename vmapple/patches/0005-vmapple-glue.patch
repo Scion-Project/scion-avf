@@ -1,0 +1,209 @@
+Scion: what the KDK archive supplies and the open release leaves out.
+
+Modifications to Apple's xnu (xnu-12377.121.6) and new files for it, Apple Public
+Source License 2.0 (APSL-2.0); see https://www.opensource.apple.com/apsl/. Original
+files: Apple Inc. These changes: Scion contributors. Apply in order after buildfix.sh.
+
+New osfmk/arm64/scion_vmapple_glue.c and scion_chkstk.s, in place of amcc_rorgn_*.c
+(not in the release): no read-only region (the answers of a board without kernel
+integrity hardware; text stays writable to the kernel, as on Scion's xnu-8796 builds),
+ml_enable_monitor (nothing to enable), ml_device_is_prod_fused (TRUE), the DEVELOPMENT
+pmap_pending_preemption, CleanPoC_DcacheRegion_Force_nopreempt[_nohid], and a
+__chkstk_darwin with a BTI landing pad (Xcode's libcc_kext copy has none, and the kernel
+calls it through an authenticated pointer with BTI enforced).
+
+diff --git a/osfmk/arm64/scion_chkstk.s b/osfmk/arm64/scion_chkstk.s
+new file mode 100644
+index 0000000..6de0bd5
+--- /dev/null
++++ b/osfmk/arm64/scion_chkstk.s
+@@ -0,0 +1,47 @@
++/*
++ * Copyright (c) 2026 Scion contributors. All rights reserved.
++ *
++ * @APPLE_OSREFERENCE_LICENSE_HEADER_START@
++ *
++ * This file contains Original Code and/or Modifications of Original Code
++ * as defined in and that are subject to the Apple Public Source License
++ * Version 2.0 (the 'License'). You may not use this file except in
++ * compliance with the License. Please obtain a copy of the License at
++ * http://www.opensource.apple.com/apsl/ and read it before using this file.
++ *
++ * The Original Code and all software distributed under the License are
++ * distributed on an 'AS IS' basis, WITHOUT WARRANTY OF ANY KIND, EITHER
++ * EXPRESS OR IMPLIED, AND APPLE HEREBY DISCLAIMS ALL SUCH WARRANTIES,
++ * INCLUDING WITHOUT LIMITATION, ANY WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE, QUIET ENJOYMENT OR NON-INFRINGEMENT.
++ * Please see the License for the specific language governing rights and
++ * limitations under the License.
++ *
++ * @APPLE_OSREFERENCE_LICENSE_HEADER_END@
++ */
++
++/*
++ * Scion: __chkstk_darwin with a BTI landing pad. The kernel calls it through
++ * an authenticated pointer (blraa), and the copy in Xcode's libcc_kext.a has no
++ * "bti c", so a kernel with BTI enforced (VMAPPLE) faults on the first call.
++ * Same contract as the compiler's: x9 = bytes about to be allocated below sp;
++ * touches each 4 KB page of that range from the top down; clobbers x9, x10.
++ */
++	.text
++	.align 2
++	.globl ___chkstk_darwin
++___chkstk_darwin:
++	bti		c
++	cmp		x9, #0x1, lsl #12
++	mov		x10, sp
++	b.lo	2f
++1:
++	sub		x10, x10, #0x1, lsl #12
++	ldrb	wzr, [x10]
++	sub		x9, x9, #0x1, lsl #12
++	cmp		x9, #0x1, lsl #12
++	b.hi	1b
++2:
++	sub		x10, x10, x9
++	ldrb	wzr, [x10]
++	ret
+diff --git a/osfmk/arm64/scion_vmapple_glue.c b/osfmk/arm64/scion_vmapple_glue.c
+new file mode 100644
+index 0000000..ee632f7
+--- /dev/null
++++ b/osfmk/arm64/scion_vmapple_glue.c
+@@ -0,0 +1,119 @@
++/*
++ * Copyright (c) 2026 Scion contributors. All rights reserved.
++ *
++ * @APPLE_OSREFERENCE_LICENSE_HEADER_START@
++ *
++ * This file contains Original Code and/or Modifications of Original Code
++ * as defined in and that are subject to the Apple Public Source License
++ * Version 2.0 (the 'License'). You may not use this file except in
++ * compliance with the License. Please obtain a copy of the License at
++ * http://www.opensource.apple.com/apsl/ and read it before using this file.
++ *
++ * The Original Code and all software distributed under the License are
++ * distributed on an 'AS IS' basis, WITHOUT WARRANTY OF ANY KIND, EITHER
++ * EXPRESS OR IMPLIED, AND APPLE HEREBY DISCLAIMS ALL SUCH WARRANTIES,
++ * INCLUDING WITHOUT LIMITATION, ANY WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE, QUIET ENJOYMENT OR NON-INFRINGEMENT.
++ * Please see the License for the specific language governing rights and
++ * limitations under the License.
++ *
++ * @APPLE_OSREFERENCE_LICENSE_HEADER_END@
++ */
++
++/*
++ * Scion: the pieces of a VMAPPLE kernel that Apple links from the Kernel Debug
++ * Kit's binary archive and the open-source release does not contain, written
++ * for a VM that runs without Apple's hypervisor (crosvm under KVM, QEMU).
++ */
++#include <pexpert/arm64/board_config.h>
++#include <mach/vm_types.h>
++#include <mach/boolean.h>
++#include <kern/ast.h>
++#include <arm/cpu_data_internal.h>
++#include <arm64/amcc_rorgn.h>
++
++/*
++ * Read-only region (KTRR / CTRR / VMAPPLE's paravirtualised CTRR): nothing
++ * locks the kernel's text here; these are the answers of a board without
++ * kernel-integrity hardware.
++ */
++#if defined(KERNEL_INTEGRITY_KTRR) || defined(KERNEL_INTEGRITY_CTRR) || defined(KERNEL_INTEGRITY_PV_CTRR)
++vm_offset_t ctrr_begin, ctrr_end;
++vm_offset_t rorgn_begin, rorgn_end;
++
++void
++rorgn_stash_range(void)
++{
++}
++
++void
++rorgn_lockdown(void)
++{
++}
++
++bool
++rorgn_contains(vm_offset_t addr, vm_size_t size, bool defval)
++{
++#pragma unused(addr, size)
++	return defval;
++}
++
++void
++rorgn_validate_core(void)
++{
++}
++#endif
++
++/* NO_MONITOR: there is no page-table monitor to enable. */
++void ml_enable_monitor(void);
++void
++ml_enable_monitor(void)
++{
++}
++
++/* No fuses on a VM: report a production part, the stricter of the two answers. */
++boolean_t ml_device_is_prod_fused(void);
++boolean_t
++ml_device_is_prod_fused(void)
++{
++	return TRUE;
++}
++
++#if SCHED_HYGIENE_DEBUG && (DEBUG || DEVELOPMENT)
++/* pmap.h's declaration for this configuration; the plain check, as in other configurations. */
++bool pmap_pending_preemption(void);
++bool
++pmap_pending_preemption(void)
++{
++	return !!(*((volatile ast_t *)ast_pending()) & AST_URGENT);
++}
++#endif
++
++/* Clean a range of the data cache to the point of coherency, by VA. */
++static void
++scion_clean_dcache_poc(vm_offset_t va, size_t length)
++{
++	uint64_t ctr;
++	__asm__ volatile ("mrs %0, CTR_EL0" : "=r"(ctr));
++	const vm_offset_t line = 4UL << ((ctr >> 16) & 0xf);
++	const vm_offset_t end = va + length;
++	__asm__ volatile ("dsb sy" ::: "memory");
++	for (va &= ~(line - 1); va < end; va += line) {
++		__asm__ volatile ("dc cvac, %0" : : "r"(va) : "memory");
++	}
++	__asm__ volatile ("dsb sy" ::: "memory");
++}
++
++void CleanPoC_DcacheRegion_Force_nopreempt(vm_offset_t va, size_t length);
++void
++CleanPoC_DcacheRegion_Force_nopreempt(vm_offset_t va, size_t length)
++{
++	scion_clean_dcache_poc(va, length);
++}
++
++void CleanPoC_DcacheRegion_Force_nopreempt_nohid(vm_offset_t va, size_t length);
++void
++CleanPoC_DcacheRegion_Force_nopreempt_nohid(vm_offset_t va, size_t length)
++{
++	scion_clean_dcache_poc(va, length);
++}
+diff --git a/osfmk/conf/files.arm64 b/osfmk/conf/files.arm64
+index 878b515..0a3d0f0 100644
+--- a/osfmk/conf/files.arm64
++++ b/osfmk/conf/files.arm64
+@@ -35,10 +35,8 @@ osfmk/arm64/WKdmCompress_4k.s	standard
+ osfmk/arm64/WKdmData.s		standard
+ osfmk/arm64/lz4_decode_arm64.s  standard
+ osfmk/arm64/lz4_encode_arm64.s  standard
+-osfmk/arm64/amcc_rorgn_ppl.c optional nos_arm_asm config_pmap_ppl
+-osfmk/arm64/amcc_rorgn_ppl_amcc.c optional nos_arm_asm config_pmap_ppl
+-osfmk/arm64/amcc_rorgn_common.c optional nos_arm_asm
+-osfmk/arm64/amcc_rorgn_pv_ctrr.c optional nos_arm_asm
++osfmk/arm64/scion_vmapple_glue.c optional nos_arm_asm
++osfmk/arm64/scion_chkstk.s optional nos_arm_asm
+ osfmk/arm64/bcopy.s standard
+ osfmk/arm64/bzero.s standard
+ osfmk/arm/caches.c		standard

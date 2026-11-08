@@ -1,0 +1,24 @@
+Scion: room for the physical aperture's twig alignment (large memory, no monitor).
+
+Modifications to Apple's xnu (xnu-12377.121.6) and new files for it, Apple Public
+Source License 2.0 (APSL-2.0); see https://www.opensource.apple.com/apsl/. Original
+files: Apple Inc. These changes: Scion contributors. Apply in order after buildfix.sh.
+
+SCION_NATIVE_PAC builds only. Without it arm_vm_physmap_init() asserts on a kernel with
+no kexts: Apple's VMs boot a kernel collection whose read-only part (outside the
+aperture) is bigger than the alignment waste; the open kernel's is not.
+
+diff --git a/osfmk/arm64/arm_vm_init.c b/osfmk/arm64/arm_vm_init.c
+index 756af52..7b4e928 100644
+--- a/osfmk/arm64/arm_vm_init.c
++++ b/osfmk/arm64/arm_vm_init.c
+@@ -1885,6 +1885,9 @@ arm_vm_init(uint64_t memory_size, boot_args * args)
+ 	/* For large memory systems with no PPL such as virtual machines */
+ 	static_memory_end = phystokv(args->topOfKernelData);
+ 	physmap_end = physmap_base + real_phys_size;
++#if SCION_NATIVE_PAC
++	physmap_end += PTOV_TABLE_SIZE * ARM_TT_TWIG_SIZE;     /* worst-case twig alignment, as below */
++#endif
+ #else
+ 	static_memory_end = physmap_base + mem_size + (PTOV_TABLE_SIZE * ARM_TT_TWIG_SIZE); // worst possible case for block alignment
+ 	physmap_end = physmap_base + real_phys_size + (PTOV_TABLE_SIZE * ARM_TT_TWIG_SIZE);
