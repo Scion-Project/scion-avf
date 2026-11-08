@@ -1,12 +1,12 @@
-Scion: 8250/16550 console for VMAPPLE under crosvm (AVF's captured console, ns16550a at 0x3f8).
+Scion: 16550 console for VMAPPLE under crosvm (AVF's ns16550a at 0x3f8).
 
-Modifications to Apple's xnu (xnu-12377.121.6), Apple Public Source License 2.0
-(APSL-2.0); see https://www.opensource.apple.com/apsl/. Copyright of the original
-files: Apple Inc. These changes: Scion contributors (ported from scion-kernel's
-xnu-8796 patch 1000-avf-ns16550-console.patch). Applies after 0001.
+Modifications to Apple's xnu (xnu-12377.121.6) and new files for it, Apple Public
+Source License 2.0 (APSL-2.0); see https://www.opensource.apple.com/apsl/. Original
+files: Apple Inc. These changes: Scion contributors. Apply in order after buildfix.sh.
 
-Only in SCION_NATIVE_PAC=1 builds; the driver is chosen when /defaults/serial-device
-names a node whose compatible is "ns16550a" (avfboot does this under crosvm).
+SCION_NATIVE_PAC builds only. Chosen when /defaults/serial-device names a node whose
+compatible is "ns16550a" (avfboot does this under crosvm). Ported from scion-kernel's
+xnu-8796 patch 1000-avf-ns16550-console.patch.
 
 diff --git a/pexpert/arm/pe_serial.c b/pexpert/arm/pe_serial.c
 index 032d9e0..80ce94f 100644

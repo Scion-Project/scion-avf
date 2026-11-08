@@ -13,7 +13,7 @@ IPSW, KDK or firmware content.
 |---|---|---|
 | `setup.sh` | fetch sources, build the fake SDK root (availability.pl, xnu headers, libfirehose_kernel), apply `buildfix.sh` and `patches/` | AGPL-3.0-or-later |
 | `buildfix.sh` | build-system edits so the open tree links without the KDK (no kernel behaviour change) | AGPL-3.0-or-later |
-| `patches/0001-vmapple-scion-native-pac.patch` | PAC keys in the architectural registers instead of Apple's `hvc` calls, behind `SCION_NATIVE_PAC=1` | APSL-2.0 (modifies Apple's xnu) |
+| `patches/0001…0007-*.patch` | 0001 PAC keys in the architectural registers instead of Apple's `hvc` calls (`SCION_NATIVE_PAC=1`); 0002 16550 console for crosvm; 0003 no Apple implementation-defined registers; 0004 pmap without a monitor; 0005 what the KDK archive supplies (no read-only region, BTI-padded `__chkstk_darwin`, …); 0006 chained-fixup rebase and signing in `arm_init`; 0007 physical-aperture slack. All behaviour changes only with `SCION_NATIVE_PAC=1` | APSL-2.0 (modify Apple's xnu; stated in each) |
 | `kbuild.sh` | `make … MACHINE_CONFIGS=VMAPPLE SCION_NATIVE_PAC=1` | AGPL-3.0-or-later |
 | `qemu-vmapple.sh` | avfboot + XNUP payload on QEMU virt, TCG `-cpu max` (PAuth) | AGPL-3.0-or-later |
 | `crosvm-vmapple.md` | the same VM on the Pixel 10 (AVF) and on a Linux KVM host (crosvm) | AGPL-3.0-or-later |
@@ -28,11 +28,11 @@ ls /path/to/work/build/xnu.obj/kernel.development.vmapple
 
 ## Boot on QEMU
 
-avfboot (scion-kernel `avf/shim/`) needs two small changes for a macOS-linked
-kernel: take the kernel's virtual base from the Mach-O (VMAPPLE links at
-`0xfffffe0007004000`, not iOS's `0xfffffff007004000`), and name the console in
-`/defaults/serial-device`, which is how xnu-12377's `pe_serial.c` finds it.
-Both are in the scion-kernel draft PR linked from docs/AVF-VMAPPLE.md.
+avfboot (scion-kernel `avf/shim/`) needs three small changes for a macOS-linked
+xnu-12377 kernel: the kernel's virtual base from the Mach-O (VMAPPLE links at
+`0xfffffe0007004000`, not iOS's `0xfffffff007004000`), the console named in
+`/defaults/serial-device`, and a 256-byte `/chosen/random-seed`. They are in
+Scion-Project/scion-kernel#248 (draft).
 
 ```sh
 (cd $SCION_KERNEL && python3 xnuloader/mkidentity.py --placeholder > xnuloader/identity.h && avf/shim/build.sh)
@@ -41,4 +41,4 @@ vmapple/qemu-vmapple.sh $SCION_KERNEL /path/to/work/build/xnu.obj/kernel.develop
 
 ## Status
 
-See docs/AVF-VMAPPLE.md section 6.
+Builds and links; on QEMU it gets through Mach, VM and zone bootstrap and IOKit NVRAM, and stops in `PE_init_iokit` (`SHA1Init`: no corecrypto registered). Details and the next steps: docs/AVF-VMAPPLE.md section 6. Not run on a phone.

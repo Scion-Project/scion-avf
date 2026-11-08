@@ -1,0 +1,58 @@
+Scion: compile fixes for the arm pmap without a monitor.
+
+Modifications to Apple's xnu (xnu-12377.121.6) and new files for it, Apple Public
+Source License 2.0 (APSL-2.0); see https://www.opensource.apple.com/apsl/. Original
+files: Apple Inc. These changes: Scion contributors. Apply in order after buildfix.sh.
+
+Apple builds osfmk/arm/pmap into the KDK archive; its open copy no longer compiles for a
+monitor-less board (VMAPPLE: NO_MONITOR): a diagnostic helper, the code-signing page
+lockdown calls (no monitor, nothing to lock), and a static function used before its
+definition.
+
+diff --git a/osfmk/arm/pmap/pmap.c b/osfmk/arm/pmap/pmap.c
+index 19e7e67..9586efc 100644
+--- a/osfmk/arm/pmap/pmap.c
++++ b/osfmk/arm/pmap/pmap.c
+@@ -4952,8 +4952,13 @@ pmap_page_protect_options_with_flush_range(
+ 			}
+ #endif
+ 			if (remove && (options & PMAP_OPTIONS_COMPRESSOR)) {
++#if XNU_MONITOR
+ 				panic("pmap_page_protect: attempt to compress ppnum 0x%x owned by iommu %p, pve_p=%p",
+ 				    ppnum, ptep_get_iommu(pte_p), pve_p);
++#else
++				panic("pmap_page_protect: attempt to compress ppnum 0x%x owned by an iommu (pte %p), pve_p=%p",
++				    ppnum, pte_p, pve_p);
++#endif
+ 			}
+ 			goto protect_skip_pve_pass1;
+ 		}
+@@ -6180,6 +6185,8 @@ pmap_construct_pte(
+ 	return pte;
+ }
+ 
++MARK_AS_PMAP_TEXT static void pmap_phys_write_disable(vm_address_t va);
++
+ MARK_AS_PMAP_TEXT kern_return_t
+ pmap_enter_options_internal(
+ 	pmap_t pmap,
+@@ -12243,7 +12250,8 @@ pmap_cs_lockdown_pages(vm_address_t kva, vm_size_t size, bool ppl_writable)
+ #if XNU_MONITOR
+ 	pmap_ppl_lockdown_pages(kva, size, PVH_FLAG_LOCKDOWN_CS, ppl_writable);
+ #else
+-	pmap_ppl_lockdown_pages(kva, size, 0, ppl_writable);
++	/* Scion: no monitor, so no lockdown state to keep */
++#pragma unused(kva, size, ppl_writable)
+ #endif
+ }
+ 
+@@ -12253,7 +12261,8 @@ pmap_cs_unlockdown_pages(vm_address_t kva, vm_size_t size, bool ppl_writable)
+ #if XNU_MONITOR
+ 	pmap_ppl_unlockdown_pages(kva, size, PVH_FLAG_LOCKDOWN_CS, ppl_writable);
+ #else
+-	pmap_ppl_unlockdown_pages(kva, size, 0, ppl_writable);
++	/* Scion: no monitor, so no unlockdown state to keep */
++#pragma unused(kva, size, ppl_writable)
+ #endif
+ }
+ 

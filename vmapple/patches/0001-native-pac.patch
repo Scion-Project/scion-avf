@@ -1,16 +1,15 @@
-Scion: VMAPPLE without Apple's hypervisor -- architectural PAC keys (SCION_NATIVE_PAC).
+Scion: VMAPPLE without Apple's hypervisor: architectural PAC keys (SCION_NATIVE_PAC).
 
-Modifications to Apple's xnu (xnu-12377.121.6), Apple Public Source License 2.0
-(APSL-2.0); see https://www.opensource.apple.com/apsl/. Copyright of the original
-files: Apple Inc. These changes: Scion contributors. Design after UniXNU's
-native-pac-keys.patch (BSD-2-Clause-Patent); no UniXNU code is copied.
+Modifications to Apple's xnu (xnu-12377.121.6) and new files for it, Apple Public
+Source License 2.0 (APSL-2.0); see https://www.opensource.apple.com/apsl/. Original
+files: Apple Inc. These changes: Scion contributors. Apply in order after buildfix.sh.
 
-Build with `make ... MACHINE_CONFIGS=VMAPPLE SCION_NATIVE_PAC=1`; without the switch
-the kernel is unchanged. With it, HAS_PARAVIRTUALIZED_PAC is not defined, so no
-VMAPPLE_PAC_* hvc is made; PAC_INIT_KEY_STATE fills one key set per boot and
-loads it into APIA/APIB/APDA/APDB/APGA on every CPU before SCTLR_EL1 enables the
-keys. EL0 and EL1 share that set (no per-process keys), which is weaker than
-Apple's model: see docs/AVF-VMAPPLE.md section 4.
+Build with `make ... MACHINE_CONFIGS=VMAPPLE SCION_NATIVE_PAC=1`; without the switch the
+kernel is unchanged. HAS_PARAVIRTUALIZED_PAC is then not defined, so no VMAPPLE_PAC_* hvc
+is made; PAC_INIT_KEY_STATE fills one key set per boot and loads APIA/APIB/APDA/APDB/APGA
+on every CPU before SCTLR_EL1 enables the keys. EL0 and EL1 share that set (no
+per-process keys): weaker than Apple's model, see docs/AVF-VMAPPLE.md section 4. Design
+after UniXNU's native-pac-keys.patch (BSD-2-Clause-Patent); no UniXNU code is copied.
 
 diff --git a/makedefs/MakeInc.def b/makedefs/MakeInc.def
 index e37762b..6fa43a1 100644

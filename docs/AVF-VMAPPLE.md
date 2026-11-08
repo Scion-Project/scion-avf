@@ -54,6 +54,11 @@ results, not reproduced here.
    Gunyah hypervisor, with its own crosvm build) [prior]; the Pixel's stock
    crosvm offers fewer devices than that build, so Scion has to stay on
    virtio-pci and the devices AVF already attaches.
+6. **Measured tonight, on QEMU only:** the open VMAPPLE kernel, built without
+   the KDK and with Scion's seven patches, boots on QEMU `virt` with FEAT_PAuth
+   (QARMA3) through Mach, VM and zone bootstrap, logging and IOKit's NVRAM, and
+   stops in `PE_init_iokit` because no corecrypto is registered (section 6).
+   The next phone experiment is one read-only AVF run of this kernel (section 7).
 
 ## 2. What the app can start on a stock Pixel 10
 
@@ -88,7 +93,7 @@ From `pexpert/pexpert/arm64/VMAPPLE.h` and its users [xnu]:
 
 | VMAPPLE has | crosvm on the Pixel | Gap |
 |---|---|---|
-| `HAS_GIC_V3`; `pexpert/arm/pe_fiq.c` wakes the redistributor and takes the timer as a group-0 interrupt (FIQ) | GICv3 emulated by KVM's vGIC (group 0 signals vFIQ) | to verify under KVM; works under QEMU TCG (section 6) |
+| `HAS_GIC_V3`; `pexpert/arm/pe_fiq.c` wakes the redistributor and takes the timer as a group-0 interrupt (FIQ) | GICv3 emulated by KVM's vGIC (group 0 signals vFIQ) | not reached yet: the QEMU boot stops before the first interrupt (section 6) |
 | `PL011_UART` console | 8250 at `0x3f8` | a 16550 back end in `pe_serial.c` (HakiOS's patch 1000 does this for xnu-8796) |
 | `__ARM_16K_PG__`, `__ARM_MIXED_PAGE_SIZE__` | Cortex-A725 implements the 16 KiB granule; the guest picks its own stage-1 granule, independent of pKVM's 4 KiB stage 2 | not yet seen on the phone: the AVF-BENCH `kernel-16k` leg answers it |
 | `NO_MONITOR` (no PPL, no SPTM, no TXM) | nothing to provide | none; also nothing for the behaviour-preservation rule to keep |
@@ -150,8 +155,112 @@ dyld and the kernel sign at load time.
 
 See [`vmapple/README.md`](../vmapple/README.md) for the commands.
 
-In progress: the kernel build and the first QEMU boot are being run on the build Mac; this section is filled in by the next push of this PR.
+### Build [built]
+
+`xnu-12377.121.6`, `MACHINE_CONFIGS=VMAPPLE`, `KERNEL_CONFIGS=DEVELOPMENT`,
+`SDKROOT=macosx` (Xcode 27.2 SDK), `SCION_NATIVE_PAC=1`, no KDK: links
+`kernel.development.vmapple` (arm64e, 21 MB). What it took, in the order the build
+hit it (each one is in `vmapple/buildfix.sh` or a patch):
+
+| Blocker | Cause | Fix |
+|---|---|---|
+| `availability.pl`, `libfirehose_kernel.a`, KDK private headers | the open build expects an internal SDK | fake SDK root from Apple's open releases (`setup.sh`) |
+| `lib<MACHINE>.os.<CONFIG>.a` force-loaded | KDK binary archive | link it only if present |
+| `CoreEntitlements/V2`, `CodeSignature/Entitlements.h`, `TrustCache/*` | KDK-only headers | opaque types, four entitlement strings, TrustCache headers from xnu-8796.101.5 |
+| no `start.s`, `locore.s`, `cswitch.s`, caches, pmap in the link (264 undefined symbols) | files marked `nos_arm_asm` / `nos_arm_pmap`; Apple ships them prebuilt in the KDK archive | add both options to `MASTER.arm64.MacOSX` and compile them from source |
+| `arm64/ppl/sart.h`, `uat.h`, `arm64/tunables/tunables.s` | not in the release | empty stand-ins (no SART, UAT or CPU tunables on a VM) |
+| `CPU_OVRD` undefined | Apple register, not defined for VMAPPLE | `NO_CPU_OVRD` (patch 0003) |
+| pmap no-monitor compile errors; `amcc_rorgn_*.c`, `ml_enable_monitor`, `ml_device_is_prod_fused`, two cache helpers missing | KDK archive | patches 0004, 0005 |
+
+### QEMU boot [qemu]
+
+`vmapple/qemu-vmapple.sh`: QEMU 11.1 `virt,gic-version=3`, TCG,
+`-cpu max,pauth-qarma3=on` (FEAT_PAuth with the Pixel's algorithm), 1 vCPU, 2 GB,
+avfboot (scion-kernel#248) + XNUP payload, boot-args
+`-v serial=3 debug=0x8 cpus=1 -noprogress`. Run on the build Mac.
+
+Each stop and what moved it on:
+
+| # | Stop | Diagnosis | Fix |
+|---|---|---|---|
+| 1 | silent; data abort at FAR `0x18d2c0` in `static_if_init` | data pointers still in chained-fixup form: Xcode 26+ `ld` links the kernel with `LC_DYLD_CHAINED_FIXUPS` (format 7) and can no longer emit `__thread_starts`, which is all `arm_init` knows how to rebase outside a kernel collection | patch 0006: `arm_init` walks the chains and signs authenticated pointers with the keys `SCION_NATIVE_PAC` loaded |
+| 2 | `Expected 256 seed bytes from bootloader, but got 64` | xnu-12377 wants a bigger `/chosen/random-seed` | avfboot (scion-kernel#248) |
+| 3 | assert in `arm_vm_physmap_init` | the physical aperture's twig alignment overruns `physmap_end` on a large-memory, monitor-less board when the kernel has no kexts | patch 0007 |
+| 4 | Branch Target Exception at `__chkstk_darwin` | called through an authenticated pointer (`blraa`) with BTI enforced; Xcode's `libcc_kext.a` copy has no `bti c` | patch 0005 adds one with a landing pad |
+| 5 | assert in `PE_init_iokit` (boot progress) | macOS draws boot progress by default and there is no framebuffer | boot-arg `-noprogress` |
+| **6** | **data abort (FAR `0x28`) in `SHA1Init`, called from `IOPlatformExpertDevice::generatePlatformUUID()` in `PE_init_iokit`; the panic path then faults again in the extended panic log, so nothing is printed** | **XNU's crypto entry points are a table the corecrypto kext registers (`register_crypto_functions`); there is no kext here** | **next step, below** |
+
+Console at the stop (the build user in the version string elided):
+
+```
+avfboot: jumping to XNU at 0x435f0480
+Darwin Kernel Version 25.5.0: Sat Nov  7 22:25:47 GMT 2026; …:xnu.obj/DEVELOPMENT_ARM64_VMAPPLE
+pmap_startup() init/release time: 2525233 microsec
+vm_page_bootstrap: 124059 free pages, 4965 wired pages
+...
+zone_init: map VM    0xfffffe1000674000:0xfffffe14cd340000 (19G, 19G usable)
+...
+VM bootstrap done: 71 maps, 235 entries and 60 nodes left
+Firehose configured: 16 chunks, 8 io pages
+OSLog stream configured: stream: 8192 bytes, cache: 2112 bytes
+...
+Serial requested, consistent debug disabled or debug boot arg not present, configuring debugging over serial
+iBoot version: iBoot-8422.100.650
+IONVRAM.cpp:start:1447 - ...
+IONVRAM.cpp:initImageFormat:1586 - NVRAM size is 8192 bytes
+IONVRAM.cpp:handleEphDM:1373 - ephemeral-data-mode not supported
+pNNNNMACH Reboot
+```
+
+What this establishes: the `SCION_NATIVE_PAC` key set works (every return
+address, the chained-fixup signing and the `blraa` calls authenticate), the
+16 KiB-page VMAPPLE pmap comes up without a monitor, the PL011 console runs,
+and Mach, the VM system, zones, logging
+and IOKit's NVRAM start, all on a non-Apple CPU model. (`iBoot version` is the
+string compiled into the kernel, not a loader.) What it does not establish:
+anything on the phone, the 16550 console path (patch 0002 is built, not run),
+more than one vCPU, interrupts (the boot stops before the first timer
+interrupt is needed), or user space.
+
+How the stops were found without a console: QEMU `-d int` for the exception
+and `ELR`, `atos` on the unstripped kernel, a frame-pointer walk through the
+QEMU monitor, and lldb on QEMU's gdb stub for the caller of the faulting
+function. The assert descriptors behind `brk #0xbffc` decode with the kernel's
+own `__desc` records.
+
+### Next steps (kernel)
+
+1. Crypto in the kernel: register a `crypto_functions` table at early boot
+   (UniXNU builds Apple's published corecrypto source into its kernel for
+   this, `source-corecrypto14-bootstrap.patch`; how Scion's xnu-8796 tree
+   handles it is to be checked), or, as a stop-gap, give `generatePlatformUUID` a
+   platform UUID without SHA-1. The first is needed anyway for code signing.
+2. A panic log region (`/pram` or `PLATFORM_PANIC_LOG_DISABLED` handled) so
+   panics print instead of faulting in `is_debug_ptr_in_ext_paniclog`.
+3. Interrupts: VMAPPLE's `pe_fiq.c` takes the timer as a GICv3 group-0 FIQ; the
+   IRQ side (virtio, IPIs) needs Scion's GIC and virtio-pci drivers ported from
+   the xnu-8796 tree onto the ios-26 base (scion-kernel#246).
+4. Then the iOS side: `SDKROOT=iphoneos` (the ios-26 profile builds VMAPPLE for
+   iPhoneOS) and arm64 user processes under one shared key set (section 4).
 
 ## 7. Next phone experiment (read-only, needs the owner's go)
 
-See [`vmapple/crosvm-vmapple.md`](../vmapple/crosvm-vmapple.md) section 1. Filled in with the QEMU stop point by the next push.
+One run of the probe app with the VMAPPLE kernel, the way HakiOS's kernel has
+already been run (scion-kernel `avf/run-probe.sh`; details in
+[`vmapple/crosvm-vmapple.md`](../vmapple/crosvm-vmapple.md) section 1). It is
+read-only in the sense that matters: nothing is flashed, no partition or
+setting outside the app is written, and `run-probe.sh` revokes the grants and
+the hidden-API exemption on exit. It installs a test APK and runs one
+non-protected VM for about a minute.
+
+It answers three questions QEMU cannot:
+
+1. Does a 16 KiB-granule guest boot under pKVM? (MMU on, kernel banner.)
+2. Do `SCION_NATIVE_PAC`'s keys work under KVM on the Cortex-A725 (QARMA3)?
+   (Banner and VM bootstrap; a PAC failure shows as a `brk #0xc47x` or an
+   instruction abort right after the MMU comes on.)
+3. Does patch 0002's 16550 console print on AVF's captured console?
+
+Expected result if all three hold: the same stop as QEMU (`SHA1Init`), after
+the VM bootstrap lines. It needs the owner's go, because the Pixel 10 is a
+daily phone and the run installs and starts a VM on it.

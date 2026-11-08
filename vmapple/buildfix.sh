@@ -48,4 +48,11 @@ H
 # marked nos_arm_asm / nos_arm_pmap, which Apple links from the KDK archive instead: compile it here.
 grep -q 'nos_arm_asm nos_arm_pmap' config/MASTER.arm64.MacOSX ||
 	sed -i '' 's|^#  KERNEL_BASE =    \[ arm64 |#  KERNEL_BASE =    [ arm64 nos_arm_asm nos_arm_pmap |' config/MASTER.arm64.MacOSX
+# arm64/ppl/sart.h and uat.h are not in the open release: a VM has no SART DMA filter and no UAT.
+mkdir -p osfmk/arm64/ppl
+[ -f osfmk/arm64/ppl/sart.h ] || printf '/* Scion: no SART DMA filter on a VM. */\n#pragma once\nstatic inline void sart_bootstrap(void) { }\n' > osfmk/arm64/ppl/sart.h
+[ -f osfmk/arm64/ppl/uat.h ] || printf '/* Scion: no UAT on a VM. */\n#pragma once\n' > osfmk/arm64/ppl/uat.h
+# arm64/tunables/tunables.s (Apple's per-SoC CPU tunables) is not in the open release: none on a VM.
+mkdir -p osfmk/arm64/tunables
+[ -f osfmk/arm64/tunables/tunables.s ] || printf '/* Scion: no CPU tunables on a VM. */\n.macro APPLY_TUNABLES midr, tmp1, tmp2\n.endmacro\n' > osfmk/arm64/tunables/tunables.s
 echo "buildfix: done"

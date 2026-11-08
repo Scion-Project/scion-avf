@@ -8,7 +8,8 @@
 #
 # SCION_KERNEL_CHECKOUT: a Scion-Project/scion-kernel tree with avf/shim built (avf/shim/build.sh; needs
 # the "VMAPPLE" avfboot change, see README) and xnuloader/mkpayload.py. KERNEL: kernel.*.vmapple.
-# env: BOOTARGS (default "-v serial=3 debug=0x8 cpus=1"), MEM (2G), SMP (1), CPU (max,pauth-qarma3=on)
+# env: BOOTARGS (default "-v serial=3 debug=0x8 cpus=1 -noprogress": macOS kernels draw boot progress
+#      by default and assert without a framebuffer), MEM (2G), SMP (1), CPU (max,pauth-qarma3=on)
 set -euo pipefail
 SK=$(cd "${1:?scion-kernel checkout}" && pwd); KERNEL=${2:?kernel}; SECS=${3:-120}
 shift $(( $# >= 3 ? 3 : $# ))
@@ -18,7 +19,7 @@ PAYLOAD=$(mktemp -t vmapple-payload); trap 'rm -f "$PAYLOAD"' EXIT
 python3 "$SK/xnuloader/mkpayload.py" --no-version -o "$PAYLOAD" kernel="$KERNEL"
 qemu-system-aarch64 -M virt,gic-version=3,virtualization=off,secure=off \
 	-accel tcg,thread=multi -cpu "${CPU:-max,pauth-qarma3=on}" -smp "${SMP:-1}" -m "${MEM:-2G}" \
-	-kernel "$IMAGE" -initrd "$PAYLOAD" -append "${BOOTARGS:--v serial=3 debug=0x8 cpus=1}" \
+	-kernel "$IMAGE" -initrd "$PAYLOAD" -append "${BOOTARGS:--v serial=3 debug=0x8 cpus=1 -noprogress}" \
 	-nographic -serial stdio -monitor none -no-reboot "$@" &
 QPID=$!
 ( sleep "$SECS"; kill "$QPID" 2>/dev/null ) &

@@ -9,13 +9,14 @@ python3 $SCION_KERNEL/xnuloader/mkpayload.py --no-version -o payload.bin kernel=
 IMAGE=$SCION_KERNEL/avf/shim/out/Image      # avfboot with the VMAPPLE changes
 ```
 
-Boot-args: `serial=3 debug=0x8 -v cpus=1`. Keep a leading `-` out of the
+Boot-args: `serial=3 debug=0x8 -v cpus=1 -noprogress` (`-noprogress`: a macOS kernel draws boot
+progress by default and asserts without a framebuffer). Keep a leading `-` out of the
 parameters on AVF (avf/README.md: crosvm once rejected `-v cpus=8`).
 
 ## 1. Pixel 10, AVF (needs the owner's go; nothing is flashed)
 
 ```sh
-$SCION_KERNEL/avf/run-probe.sh $IMAGE payload.bin -s SERIAL --mem 2048 --params "serial=3 debug=0x8 -v cpus=1"
+$SCION_KERNEL/avf/run-probe.sh $IMAGE payload.bin -s SERIAL --mem 2048 --params "serial=3 debug=0x8 -v cpus=1 -noprogress"
 ```
 
 `run-probe.sh` installs the probe app from this repo, grants
@@ -31,7 +32,7 @@ What the console tells us, in order:
 |---|---|
 | nothing from avfboot | the VM did not start (see the probe's `VERDICT`) |
 | `avfboot: jumping to XNU at …`, then nothing | XNU died before its console: most likely the 16 KiB granule (MMU on) or the first PAC instruction |
-| XNU's version banner and early `kprintf`s | 16 KiB pages and FEAT_PAuth work under pKVM; the run then stops where QEMU does (docs/AVF-VMAPPLE.md section 6) or earlier |
+| XNU's version banner and early `kprintf`s | 16 KiB pages and FEAT_PAuth work under pKVM; the run then stops where QEMU does (`SHA1Init` from `PE_init_iokit`, docs/AVF-VMAPPLE.md section 6) or earlier |
 
 The probe app's own result files (`report.txt`, `console.txt`,
 `avf-logcat.txt`) also record the crosvm command line virtmgr used.
@@ -41,7 +42,7 @@ The probe app's own result files (`report.txt`, `console.txt`,
 ```sh
 crosvm run --disable-sandbox --no-pmu --cpus 1 --mem size=2048 \
   --serial type=stdout,hardware=serial,num=1,console=true,earlycon=true \
-  --params "serial=3 debug=0x8 -v cpus=1" --initrd payload.bin $IMAGE
+  --params "serial=3 debug=0x8 -v cpus=1 -noprogress" --initrd payload.bin $IMAGE
 ```
 
 This is the device set AVF gives a raw-config VM, minus virtio-console and the
