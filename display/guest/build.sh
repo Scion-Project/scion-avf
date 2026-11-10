@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: MIT-0
 #
 # Builds the display/touch test guest:
 #   out/Image       the probe's stock Debian 13 cloud kernel (4 KiB pages, SHA-256 pinned)

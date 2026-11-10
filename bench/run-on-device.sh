@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: MIT-0
 #
 # Question 2 in one command: how much faster is a guest running natively under
 # the phone's hypervisor (AVF/crosvm on pKVM) than the same guest under QEMU

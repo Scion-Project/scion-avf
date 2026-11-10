@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: MIT-0
 //
 // scfb-init: PID 1 for the display/touch test guest. No libc: raw aarch64
 // syscalls, so any clang that targets aarch64-linux builds it.

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: MIT-0
 #
 # Build kernel.<config>.vmapple from the tree vmapple/setup.sh prepared, with SCION_NATIVE_PAC=1.
 #

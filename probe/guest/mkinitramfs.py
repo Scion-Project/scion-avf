@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: MIT-0
 """Pack a static init binary into a gzip'd newc initramfs.
 
 Usage: mkinitramfs.py <init-binary> <out.img> [--add /dest/path=host/file[:mode]]...

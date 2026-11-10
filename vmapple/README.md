@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT-0 -->
 # vmapple/: an open xnu-12377 VMAPPLE kernel for AVF
 
 For developers. Builds Apple's open-source `xnu-12377.121.6` for its virtual

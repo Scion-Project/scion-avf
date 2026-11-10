@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: MIT-0
 #
 # Builds the throwaway Linux guest used by the AVF probe:
 #   out/Image       a stock Debian arm64 "cloud" kernel, 4 KiB pages (SHA-256 pinned)

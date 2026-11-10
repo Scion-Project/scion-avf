@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT-0 -->
 # Display and touch for a Scion AVF VM
 
 **Status: works on the Pixel 10.** A Linux guest's framebuffer shows in a
