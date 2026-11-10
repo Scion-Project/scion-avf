@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: MIT-0
 #
 # Runs the benchmark guest under QEMU TCG (software CPU emulation) on THIS
 # machine and writes the console to <out>/tcg.txt. Use it to smoke-test the

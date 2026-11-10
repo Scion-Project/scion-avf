@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: MIT-0
 #
 # Boot another OS through the display test app: HackiOS's XNU via avfboot, with the Scion shared
 # framebuffer (SCFB) as its screen and virtio-input multi-touch, on an adb-connected phone.

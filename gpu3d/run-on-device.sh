@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: MIT-0
 #
 # Boots the gpu3d probe guest (scion-kernel avf/gpu3d/probe, out/Image) in an AVF VM
 # that has a virtio-gpu with the gfxstream renderer, and pulls its console.

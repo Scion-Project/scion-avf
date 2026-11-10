@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: MIT-0
 #
 # Boot a VMAPPLE kernel the way crosvm would, on QEMU virt: avfboot as the "Linux Image", the kernel in
 # an XNUP payload as the initrd, FDT in x0, PSCI over hvc, GICv3. TCG with -cpu max,pauth-qarma3=on: FEAT_PAuth with the Pixel 10's algorithm (QARMA3).

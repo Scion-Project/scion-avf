@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: MIT-0
 #
 # Cross-builds a fully static, TCG-only qemu-system-aarch64 (upstream QEMU
 # 10.2.2, the version pyre's measurements use) that runs on a stock Android
