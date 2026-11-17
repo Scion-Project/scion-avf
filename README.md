@@ -6,9 +6,14 @@ Experimental **hardware-virtualization backend** for
 iPhone 11 on the Pixel's own virtualization (Android Virtualization Framework,
 pKVM, crosvm) instead of QEMU's software CPU emulation.
 
-> **Status: feasibility spike.** Nothing here boots anything yet. The main app
-> keeps using the QEMU backend; this one becomes a selectable option in the app
-> once it works.
+> **Status: research.** The AVF route that runs today lives in
+> [scion-kernel](https://github.com/Scion-Project/scion-kernel)'s `avf/` (avfboot,
+> XNU as a pKVM guest): through the [Scion app](https://github.com/Scion-Project/scion)
+> it reached iOS 16.5's home screen on a Pixel 10 (the app's README, status of
+> 22 October 2026). This repository holds the work around it: the launch spike and
+> the benchmarks below, the display and input notes, and the VMAPPLE route for an
+> xnu-12377 kernel, which was built and booted in QEMU as far as `PE_init_iokit`
+> and has not run on a phone ([docs/AVF-VMAPPLE.md](docs/AVF-VMAPPLE.md)).
 
 ## Why a separate repo
 
