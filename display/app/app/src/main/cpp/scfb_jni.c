@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: MIT-0
 //
 // Host side of the Scion shared framebuffer (display/SCFB.md): maps the
 // ashmem region that crosvm also maps as guest RAM, waits for the guest to

@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT-0 -->
 # SCFB: the Scion shared framebuffer
 
 A linear framebuffer in a slice of guest RAM that the Android app maps too.

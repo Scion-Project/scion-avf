@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT-0 -->
 # iOS 26 XNU (xnu-12377) on the Pixel 10's AVF: the VMAPPLE route
 
 Date: 2026-11-07. Question: can Scion run an arm64e XNU from the iOS/macOS 26

@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: MIT-0
 #
 # Shared adb plumbing for probe/run-on-device.sh and bench/run-on-device.sh.
 # Source it; it defines functions only. Works with bash 3.2 (stock macOS). Non-interactive by design: nothing

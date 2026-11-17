@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: MIT-0
 #
 # Builds the guest images (probe + bench) in a pinned Debian container, for
 # hosts without clang/lld. Usage: tools/docker-build.sh

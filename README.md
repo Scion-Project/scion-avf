@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT-0 -->
 # scion-avf
 
 Experimental **hardware-virtualization backend** for

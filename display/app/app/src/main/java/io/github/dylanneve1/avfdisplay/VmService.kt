@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: MIT-0
 package io.github.dylanneve1.avfdisplay
 
 import android.app.Notification

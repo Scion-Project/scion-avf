@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: MIT-0
 #
 # Spike 1 in one command: installs the AVF probe on an adb-connected phone,
 # grants what it needs, boots the tiny Linux guest in a non-protected custom

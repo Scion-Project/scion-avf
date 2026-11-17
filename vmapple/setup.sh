@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: MIT-0
 #
 # Prepare an open-source xnu-12377 VMAPPLE kernel build on a Mac, without Apple's Kernel Debug Kit.
 #

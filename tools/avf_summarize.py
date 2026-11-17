@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: MIT-0
 """Turn a results directory into summary.json + summary.md.
 
     avf_summarize.py probe DIR   answers for spike 1 from DIR/<tag>-result.json

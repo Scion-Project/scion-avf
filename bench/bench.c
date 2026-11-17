@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: MIT-0
 //
 // avfbench: a freestanding PID 1 that runs five microbenchmarks and prints
 // machine-readable results, so the same guest can be timed under different

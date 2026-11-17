@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: MIT-0
 #
 # THE one command for when the Pixel is plugged in: builds whatever is missing,
 # then answers both questions that decide whether an AVF backend is worth

@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: MIT-0
 #
 # Sourced by probe/guest/build.sh and bench/build.sh. Provides:
 #

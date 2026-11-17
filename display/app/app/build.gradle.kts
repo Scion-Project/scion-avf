@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT-0
 plugins {
     id("com.android.application")
 }

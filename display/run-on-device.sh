@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: MIT-0
 #
 # Display/touch test on an adb-connected phone: installs display/app, grants
 # the two AVF development permissions, sets the hidden-API exemption, streams

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: MIT-0
 #
 # Builds the benchmark guest. Nothing built here is committed.
 #   out/Image         stock Debian 13 arm64 "cloud" kernel, 4 KiB pages   (pinned SHA-256)

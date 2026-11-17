@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT-0
 package io.github.dylanneve1.gpu3dprobe
 
 import android.app.Activity

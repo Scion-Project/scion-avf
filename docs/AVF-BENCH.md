@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT-0 -->
 # AVF-BENCH: two questions, one command
 
 When a Pixel 10 is plugged in, one command answers the two questions that

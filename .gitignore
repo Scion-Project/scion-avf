@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT-0
 # Build output
 probe/guest/out/
 probe/app/build/

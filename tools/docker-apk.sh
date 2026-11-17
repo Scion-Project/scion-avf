@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: MIT-0
 #
 # Builds the probe APK in a container, for hosts without a JDK/Android SDK:
 #   tools/docker-apk.sh   ->  probe/app/app/build/outputs/apk/debug/app-debug.apk

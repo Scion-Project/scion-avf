@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT-0 -->
 # Feasibility: running the iPhone 11 (t8030) guest under hardware virtualization on a Pixel 10
 
 Date: 2026-10-22. Scope: can the emulated iPhone 11 (`t8030`, XNU from iOS 14.x,

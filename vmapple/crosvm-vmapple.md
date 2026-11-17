@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: MIT-0 -->
 # Running the VMAPPLE kernel under crosvm
 
 The kernel from `kbuild.sh` (`SCION_NATIVE_PAC=1`) goes into an XNUP payload
